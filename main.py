@@ -25,3 +25,8 @@ class Subject(str, Enum):
     BIOLOGY = "BIOLOGY"
 
 
+class Difficulty(str, Enum):
+    LOW = "LOW"
+    HIGH = "HIGH"
+
+
