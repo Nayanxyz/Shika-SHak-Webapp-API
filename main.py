@@ -30,3 +30,15 @@ class Difficulty(str, Enum):
     HIGH = "HIGH"
 
 
+class ChapterMixItem(BaseModel):
+    id: str
+    name: str
+
+
+class ExamGenerationRequest(BaseModel):
+    subject: Subject
+    difficulty: Difficulty
+    chapter_mix: List[ChapterMixItem] = Field(..., max_items=5, min_items=5)
+
+
+
