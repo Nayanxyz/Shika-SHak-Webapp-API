@@ -15,3 +15,13 @@ load_dotenv()
 
 
 
+# 1. DOMAIN DATA MODELS & ENUMS
+
+
+class Subject(str, Enum):
+    MATH = "MATH"
+    PHYSICS = "PHYSICS"
+    CHEMISTRY = "CHEMISTRY"
+    BIOLOGY = "BIOLOGY"
+
+
