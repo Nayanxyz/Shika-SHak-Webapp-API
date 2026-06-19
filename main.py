@@ -60,3 +60,18 @@ class MathPhysicsValidator:
                 return False
 
 
+            parsed_exprs = []
+            for opt in options:
+                try:
+                    clean_latex = opt["text"].replace("$", "").strip()
+
+
+                    if any(token in clean_latex for token in ["=", "or", "and", "lim", "matrix", "begin"]):
+                        continue
+
+                    expr = parse_latex(clean_latex)
+                    parsed_exprs.append((opt["id"], expr))
+                except Exception:
+                    print(f"SymPy skipped parsing option {opt['id']} (Advanced Notation).")
+                    continue
+
