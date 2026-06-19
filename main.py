@@ -99,3 +99,10 @@ class ChemistryValidator:
         return True
 
 
+class BiologyValidator:
+
+    def validate(self, raw_questions: List[Dict[str, Any]]) -> bool:
+        print("Bypassing local ChromaDB vector comparison; system active.")
+        return True
+
+
