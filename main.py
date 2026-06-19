@@ -75,3 +75,20 @@ class MathPhysicsValidator:
                     print(f"SymPy skipped parsing option {opt['id']} (Advanced Notation).")
                     continue
 
+            for i in range(len(parsed_exprs)):
+                for j in range(i + 1, len(parsed_exprs)):
+                    id1, expr1 = parsed_exprs[i]
+                    id2, expr2 = parsed_exprs[j]
+
+                    try:
+                        # If algebraic subtraction simplifies cleanly to 0, they are identical
+                        if simplify(expr1 - expr2) == 0:
+                            print(
+                                f"SymPy detected mathematically identical choices: {id1} and {id2}")
+                            return False
+                    except Exception:
+                        continue
+
+        return True
+
+
