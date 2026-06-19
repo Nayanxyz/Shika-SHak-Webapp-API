@@ -42,3 +42,21 @@ class ExamGenerationRequest(BaseModel):
 
 
 
+# 2. VALIDATION TRACKS (The Guardrail Engines)
+
+class MathPhysicsValidator:
+
+    def __init__(self):
+        self.symbols_map = symbols('x y z a b c')
+
+    def validate(self, raw_questions: List[Dict[str, Any]]) -> bool:
+        for q in raw_questions:
+            options = q.get("options", [])
+
+
+            option_texts = [opt["text"].replace("$", "").strip() for opt in options]
+            if len(set(option_texts)) != len(options):
+                print("[Validation Failed] Exact duplicate text string detected in option space.")
+                return False
+
+
