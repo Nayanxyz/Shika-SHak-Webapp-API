@@ -106,3 +106,21 @@ class BiologyValidator:
         return True
 
 
+class ValidationRouter:
+
+    def __init__(self):
+        self.math_physics = MathPhysicsValidator()
+        self.chemistry = ChemistryValidator()
+        self.biology = BiologyValidator()
+
+    def route_and_verify(self, subject: Subject, raw_questions: List[Dict[str, Any]]) -> bool:
+        if subject in [Subject.MATH, Subject.PHYSICS]:
+            return self.math_physics.validate(raw_questions)
+        elif subject == Subject.CHEMISTRY:
+            return self.chemistry.validate(raw_questions)
+        elif subject == Subject.BIOLOGY:
+            return self.biology.validate(raw_questions)
+        return False
+
+
+
