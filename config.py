@@ -43,3 +43,17 @@ MASTER_CHAPTER_DATABASE = {
         {"id": "P1113", "name": "Oscillations (SHM)"},
         {"id": "P1114", "name": "Waves and Acoustics"},
         # Class 12
+        {"id": "P1201", "name": "Electric Charges and Fields"},
+        {"id": "P1202", "name": "Electrostatic Potential and Capacitance"},
+        {"id": "P1203", "name": "Current Electricity"},
+        {"id": "P1204", "name": "Moving Charges and Magnetism"},
+        {"id": "P1205", "name": "Magnetism and Matter"},
+        {"id": "P1206", "name": "Electromagnetic Induction"},
+        {"id": "P1207", "name": "Alternating Current"},
+        {"id": "P1208", "name": "Electromagnetic Waves"},
+        {"id": "P1209", "name": "Ray Optics and Optical Instruments"},
+        {"id": "P1210", "name": "Wave Optics (Interference & Diffraction)"},
+        {"id": "P1211", "name": "Dual Nature of Radiation and Matter"},
+        {"id": "P1212", "name": "Atoms and Nuclei"},
+        {"id": "P1213", "name": "Semiconductor Electronics: Materials and Devices"}
+    ],
