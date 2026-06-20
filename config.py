@@ -57,3 +57,26 @@ MASTER_CHAPTER_DATABASE = {
         {"id": "P1212", "name": "Atoms and Nuclei"},
         {"id": "P1213", "name": "Semiconductor Electronics: Materials and Devices"}
     ],
+    "CHEMISTRY": [
+        # Class 11
+        {"id": "C1101", "name": "Some Basic Concepts of Chemistry (Mole Concept)"},
+        {"id": "C1102", "name": "Structure of Atom"},
+        {"id": "C1103", "name": "Classification of Elements and Periodicity"},
+        {"id": "C1104", "name": "Chemical Bonding and Molecular Structure"},
+        {"id": "C1105", "name": "Chemical Thermodynamics"},
+        {"id": "C1106", "name": "Equilibrium (Chemical and Ionic)"},
+        {"id": "C1107", "name": "Redox Reactions"},
+        {"id": "C1108", "name": "Organic Chemistry: Some Basic Principles and Techniques (GOC)"},
+        {"id": "C1109", "name": "Hydrocarbons (Alkanes, Alkenes, Alkynes, Aromatic)"},
+        # Class 12
+        {"id": "C1201", "name": "Solutions"},
+        {"id": "C1202", "name": "Electrochemistry"},
+        {"id": "C1203", "name": "Chemical Kinetics"},
+        {"id": "C1204", "name": "The d- and f-Block Elements"},
+        {"id": "C1205", "name": "Coordination Compounds"},
+        {"id": "C1206", "name": "Haloalkanes and Haloarenes"},
+        {"id": "C1207", "name": "Alcohols, Phenols and Ethers"},
+        {"id": "C1208", "name": "Aldehydes, Ketones and Carboxylic Acids"},
+        {"id": "C1209", "name": "Amines (Organic Compounds Containing Nitrogen)"},
+        {"id": "C1210", "name": "Biomolecules"}
+    ],
