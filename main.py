@@ -223,3 +223,26 @@ You must output a single, raw JSON object matching the exact structure below. Th
             chapter_mix_list=str(chapters)
         )
 
+class OpenAIService:
+    def __init__(self):
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("Critical Configuration Missing: GROQ_API_KEY is not set.")
+        self.client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
+
+    def execute_structured_generation(self, system_prompt: str) -> str:
+        response = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "Execute production run based on system rules."}
+            ],
+            temperature=0.0
+        )
+        return response.choices[0].message.content
+
+
+# 4. CORE ORCHESTRATOR WITH RETRY LIFECYCLE
+
+
