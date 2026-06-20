@@ -25,3 +25,21 @@ MASTER_CHAPTER_DATABASE = {
         {"id": "M1209", "name": "Three-Dimensional Geometry (Vectors)"},
         {"id": "M1210", "name": "Linear Programming"},
         {"id": "M1211", "name": "Probability (Advanced)"}
+    ],
+    "PHYSICS": [
+        # Class 11
+        {"id": "P1101", "name": "Units and Measurements"},
+        {"id": "P1102", "name": "Motion in a Straight Line"},
+        {"id": "P1103", "name": "Motion in a Plane (Vectors & Projectiles)"},
+        {"id": "P1104", "name": "Laws of Motion and Friction"},
+        {"id": "P1105", "name": "Work, Energy and Power"},
+        {"id": "P1106", "name": "System of Particles and Rotational Motion"},
+        {"id": "P1107", "name": "Gravitation"},
+        {"id": "P1108", "name": "Mechanical Properties of Solids"},
+        {"id": "P1109", "name": "Mechanical Properties of Fluids"},
+        {"id": "P1110", "name": "Thermal Properties of Matter"},
+        {"id": "P1111", "name": "Thermodynamics"},
+        {"id": "P1112", "name": "Kinetic Theory of Gases"},
+        {"id": "P1113", "name": "Oscillations (SHM)"},
+        {"id": "P1114", "name": "Waves and Acoustics"},
+        # Class 12
