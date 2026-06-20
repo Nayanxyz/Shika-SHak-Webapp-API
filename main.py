@@ -290,3 +290,25 @@ class ExamOrchestrator:
 
 
 
+# 5. WEB INTERFACE LAYER
+
+
+app = FastAPI(title="Elite Exam Generation Engine API", version="1.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def get_orchestrator() -> ExamOrchestrator:
+    return ExamOrchestrator(
+        prompt_manager=PromptTemplateManager(),
+        ai_service=OpenAIService(),
+        validation_router=ValidationRouter()
+    )
+
+
