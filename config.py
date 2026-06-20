@@ -80,3 +80,37 @@ MASTER_CHAPTER_DATABASE = {
         {"id": "C1209", "name": "Amines (Organic Compounds Containing Nitrogen)"},
         {"id": "C1210", "name": "Biomolecules"}
     ],
+    "BIOLOGY": [
+        # Class 11
+        {"id": "B1101", "name": "The Living World and Biological Classification"},
+        {"id": "B1102", "name": "Plant Kingdom"},
+        {"id": "B1103", "name": "Animal Kingdom"},
+        {"id": "B1104", "name": "Morphology and Anatomy of Flowering Plants"},
+        {"id": "B1105", "name": "Structural Organisation in Animals"},
+        {"id": "B1106", "name": "Cell: The Unit of Life"},
+        {"id": "B1107", "name": "Biomolecules (Biological aspect)"},
+        {"id": "B1108", "name": "Cell Cycle and Cell Division"},
+        {"id": "B1109", "name": "Photosynthesis in Higher Plants"},
+        {"id": "B1110", "name": "Respiration in Plants"},
+        {"id": "B1111", "name": "Plant Growth and Development"},
+        {"id": "B1112", "name": "Breathing and Exchange of Gases"},
+        {"id": "B1113", "name": "Body Fluids and Circulation"},
+        {"id": "B1114", "name": "Excretory Products and their Elimination"},
+        {"id": "B1115", "name": "Locomotion and Movement"},
+        {"id": "B1116", "name": "Neural Control and Coordination"},
+        {"id": "B1117", "name": "Chemical Coordination and Integration"},
+        # Class 12
+        {"id": "B1201", "name": "Sexual Reproduction in Flowering Plants"},
+        {"id": "B1202", "name": "Human Reproduction and Reproductive Health"},
+        {"id": "B1203", "name": "Principles of Inheritance and Variation (Genetics I)"},
+        {"id": "B1204", "name": "Molecular Basis of Inheritance (Genetics II)"},
+        {"id": "B1205", "name": "Evolution"},
+        {"id": "B1206", "name": "Human Health and Disease"},
+        {"id": "B1207", "name": "Microbes in Human Welfare"},
+        {"id": "B1208", "name": "Biotechnology: Principles and Processes"},
+        {"id": "B1209", "name": "Biotechnology and its Applications"},
+        {"id": "B1210", "name": "Organisms and Populations"},
+        {"id": "B1211", "name": "Ecosystem"},
+        {"id": "B1212", "name": "Biodiversity and Conservation"}
+    ]
+}
