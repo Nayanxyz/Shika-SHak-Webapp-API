@@ -312,3 +312,10 @@ def get_orchestrator() -> ExamOrchestrator:
     )
 
 
+@app.post("/api/v1/exams/generate")
+def api_generate_exam(payload: ExamGenerationRequest, orchestrator: ExamOrchestrator = Depends(get_orchestrator)):
+    try:
+        generated_payload = orchestrator.generate_exam_payload(payload)
+        return {"status": "success", "data": generated_payload}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Upstream Engine Failure: {str(e)}")
