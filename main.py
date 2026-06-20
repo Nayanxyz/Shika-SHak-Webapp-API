@@ -246,3 +246,47 @@ class OpenAIService:
 # 4. CORE ORCHESTRATOR WITH RETRY LIFECYCLE
 
 
+class ExamOrchestrator:
+
+    def __init__(self, prompt_manager: PromptTemplateManager, ai_service: OpenAIService,
+                 validation_router: ValidationRouter):
+        self.prompt_manager = prompt_manager
+        self.ai_service = ai_service
+        self.validation_router = validation_router
+
+    def generate_exam_payload(self, request_data: ExamGenerationRequest) -> Dict[str, Any]:
+        serialized_chapters = [chapter.model_dump() for chapter in request_data.chapter_mix]
+
+        compiled_prompt = self.prompt_manager.build_orchestrator_prompt(
+            subject=request_data.subject,
+            difficulty=request_data.difficulty,
+            chapters=serialized_chapters
+        )
+
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            print(f" Generation run: Attempt {attempt} of {max_attempts}")
+
+            raw_json_output = self.ai_service.execute_structured_generation(compiled_prompt)
+
+
+            clean_json_output = raw_json_output.replace("[BS]", "\\\\")
+
+
+            parsed_payload = json.loads(clean_json_output)
+
+
+            questions_array = parsed_payload.get("questions", [])
+            is_valid = self.validation_router.route_and_verify(request_data.subject, questions_array)
+
+            if is_valid:
+                print(" Payload cleared all verification checks. Dispatching to API edge.")
+                return parsed_payload
+
+            print(f"Attempt {attempt} failed validation rules. Purging payload.")
+
+        raise RuntimeError(
+            f"Engine exhausted all {max_attempts} defensive retry attempts without passing mathematical or structure validation gates.")
+
+
+
