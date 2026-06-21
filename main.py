@@ -175,3 +175,17 @@ class ChapterMixItem(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
 
 
+class ExamGenerationRequest(BaseModel):
+    subject: Subject
+    difficulty: Difficulty
+    chapter_mix: List[ChapterMixItem] = Field(..., min_length=5, max_length=5)
+
+    @field_validator("chapter_mix")
+    @classmethod
+    def validate_unique(cls, v):
+        ids = [ch.id for ch in v]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Chapter IDs must be unique")
+        return v
+
+
