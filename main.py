@@ -214,3 +214,9 @@ class ExamResponse(BaseModel):
     exam_id: Optional[str] = None
 
 
+class PracticeAnswerRequest(BaseModel):
+    session_id: str
+    question_number: int = Field(..., ge=1, le=5)
+    selected_option: Optional[str] = Field(None, pattern="^[A-D]$")
+
+
