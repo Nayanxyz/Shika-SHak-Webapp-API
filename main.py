@@ -156,3 +156,8 @@ class Difficulty(str, Enum):
     HIGH = "HIGH"
 
 
+class GameMode(str, Enum):
+    PRACTICE = "PRACTICE"
+    BATTLE = "BATTLE"
+
+
