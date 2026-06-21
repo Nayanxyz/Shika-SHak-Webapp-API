@@ -128,3 +128,17 @@ class CacheManager:
         except Exception as e:
             logger.warning(f"Cache set error: {e}")
 
+    async def invalidate(self, pattern: str = "exam:*"):
+        if not self._redis:
+            return
+        try:
+            keys = await self._redis.keys(pattern)
+            if keys:
+                await self._redis.delete(*keys)
+        except Exception as e:
+            logger.warning(f"Cache invalidate error: {e}")
+
+
+cache_manager = CacheManager()
+
+
