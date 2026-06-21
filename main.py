@@ -161,3 +161,12 @@ class GameMode(str, Enum):
     BATTLE = "BATTLE"
 
 
+class GameStatus(str, Enum):
+    WAITING = "WAITING"
+    STARTING = "STARTING"
+    PLAYING = "PLAYING"
+    ANSWER_PHASE = "ANSWER_PHASE"
+    LEADERBOARD = "LEADERBOARD"
+    FINISHED = "FINISHED"
+
+
