@@ -189,3 +189,8 @@ class ExamGenerationRequest(BaseModel):
         return v
 
 
+class Option(BaseModel):
+    id: str = Field(..., pattern="^[A-D]$")
+    text: str = Field(..., min_length=1)
+
+
