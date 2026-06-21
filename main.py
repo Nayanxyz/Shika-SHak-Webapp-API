@@ -120,3 +120,11 @@ class CacheManager:
             logger.warning(f"Cache get error: {e}")
             return None
 
+    async def set(self, subject: str, difficulty: str, chapters: List[Dict], data: Dict):
+        if not self._redis:
+            return
+        try:
+            await self._redis.setex(self._key(subject, difficulty, chapters), self._ttl, json.dumps(data))
+        except Exception as e:
+            logger.warning(f"Cache set error: {e}")
+
