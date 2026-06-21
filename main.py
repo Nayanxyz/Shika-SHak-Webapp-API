@@ -85,3 +85,23 @@ groq_client = Groq(api_key=Config.GROQ_API_KEY)
 supabase_client: Client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
 
 
+# 2. REDIS CACHE
+
+class CacheManager:
+    def __init__(self):
+        self._redis: Optional[redis.Redis] = None
+        self._ttl = Config.REDIS_CACHE_TTL
+
+    async def connect(self):
+        try:
+            self._redis = redis.from_url(Config.REDIS_URL, decode_responses=True)
+            await self._redis.ping()
+            logger.info("Redis connected")
+        except Exception as e:
+            logger.warning(f"Redis failed: {e}. Caching disabled.")
+            self._redis = None
+
+    async def disconnect(self):
+        if self._redis:
+            await self._redis.close()
+
