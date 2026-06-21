@@ -142,3 +142,12 @@ class CacheManager:
 cache_manager = CacheManager()
 
 
+# 3. MODELS
+
+class Subject(str, Enum):
+    MATH = "MATH"
+    PHYSICS = "PHYSICS"
+    CHEMISTRY = "CHEMISTRY"
+    BIOLOGY = "BIOLOGY"
+
+
