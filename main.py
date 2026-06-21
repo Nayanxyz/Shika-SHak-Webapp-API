@@ -220,3 +220,12 @@ class PracticeAnswerRequest(BaseModel):
     selected_option: Optional[str] = Field(None, pattern="^[A-D]$")
 
 
+class PracticeResultsResponse(BaseModel):
+    session_id: str
+    total_score: int
+    correct_count: int
+    wrong_count: int
+    accuracy: float
+    completed: bool
+
+
