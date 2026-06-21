@@ -170,3 +170,8 @@ class GameStatus(str, Enum):
     FINISHED = "FINISHED"
 
 
+class ChapterMixItem(BaseModel):
+    id: str = Field(..., min_length=1, max_length=20)
+    name: str = Field(..., min_length=1, max_length=200)
+
+
