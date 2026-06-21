@@ -194,3 +194,14 @@ class Option(BaseModel):
     text: str = Field(..., min_length=1)
 
 
+class Question(BaseModel):
+    id: int
+    chapter_id: str
+    chapter_name: str
+    question_text: str
+    options: List[Option]
+    correct_option_id: str = Field(..., pattern="^[A-D]$")
+    explanation: str
+    difficulty: Difficulty
+
+
