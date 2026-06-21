@@ -105,3 +105,18 @@ class CacheManager:
         if self._redis:
             await self._redis.close()
 
+    def _key(self, subject: str, difficulty: str, chapters: List[Dict]) -> str:
+        chapters_str = json.dumps(chapters, sort_keys=True)
+        hash_input = f"{subject}:{difficulty}:{chapters_str}"
+        return f"exam:{hashlib.sha256(hash_input.encode()).hexdigest()[:16]}"
+
+    async def get(self, subject: str, difficulty: str, chapters: List[Dict]) -> Optional[Dict]:
+        if not self._redis:
+            return None
+        try:
+            cached = await self._redis.get(self._key(subject, difficulty, chapters))
+            return json.loads(cached) if cached else None
+        except Exception as e:
+            logger.warning(f"Cache get error: {e}")
+            return None
+
