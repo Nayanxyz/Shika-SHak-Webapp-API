@@ -205,3 +205,12 @@ class Question(BaseModel):
     difficulty: Difficulty
 
 
+class ExamResponse(BaseModel):
+    subject: Subject
+    difficulty: Difficulty
+    questions: List[Question]
+    generated_at: str
+    cached: bool = False
+    exam_id: Optional[str] = None
+
+
