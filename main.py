@@ -371,3 +371,33 @@ async def rate_limit_dependency(request: Request, user: Dict = Depends(AuthManag
     return user
 
 
+# 7. SUPABASE SERVICE (Minimal - metadata only)
+
+class SupabaseService:
+    @staticmethod
+    async def store_session(user_id: str, subject: str, difficulty: str,
+                           chapter_ids: List[str], mode: str, score: int = 0,
+                           correct_count: int = 0, wrong_count: int = 0,
+                           unanswered_count: int = 0, accuracy: float = 0.0,
+                           total_time_ms: int = 0) -> Optional[str]:
+        try:
+            result = supabase_client.table("sessions").insert({
+                "user_id": user_id,
+                "subject": subject,
+                "difficulty": difficulty,
+                "chapter_ids": chapter_ids,
+                "mode": mode,
+                "score": score,
+                "correct_count": correct_count,
+                "wrong_count": wrong_count,
+                "unanswered_count": unanswered_count,
+                "accuracy": accuracy,
+                "total_time_ms": total_time_ms,
+                "completed": True,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+            return result.data[0]["id"] if result.data else None
+        except Exception as e:
+            logger.error(f"Supabase store_session error: {e}")
+            return None
+
