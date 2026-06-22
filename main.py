@@ -266,3 +266,36 @@ QUESTION_JSON_SCHEMA = {
 }
 
 
+# 5. AUTHENTICATION
+
+security = HTTPBearer(auto_error=False)
+
+
+class AuthManager:
+    @staticmethod
+    def verify_token(token: str) -> Optional[Dict]:
+        """
+        Verify a Supabase JWT by checking the user with Supabase server-side.
+        This handles both HS256 and ECC tokens.
+        """
+        try:
+            # Use Supabase client to verify the token
+            # Set the auth token temporarily
+            supabase_client.auth.set_session(token, "")
+            # Get the user - this validates the token with Supabase
+            response = supabase_client.auth.get_user()
+            user = response.user
+
+            if not user:
+                logger.warning("Supabase auth returned no user")
+                return None
+
+            return {
+                "sub": user.id,
+                "email": user.email,
+                "role": "authenticated"
+            }
+        except Exception as e:
+            logger.warning(f"Supabase token verification failed: {e}")
+            return None
+
