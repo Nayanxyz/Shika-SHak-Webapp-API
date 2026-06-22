@@ -229,3 +229,40 @@ class PracticeResultsResponse(BaseModel):
     completed: bool
 
 
+# 4. GROQ JSON SCHEMA
+
+QUESTION_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "question_text": {"type": "string"},
+                    "options": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string", "enum": ["A", "B", "C", "D"]},
+                                "text": {"type": "string"}
+                            },
+                            "required": ["id", "text"]
+                        },
+                        "minItems": 4,
+                        "maxItems": 4
+                    },
+                    "correct_option_id": {"type": "string", "enum": ["A", "B", "C", "D"]},
+                    "explanation": {"type": "string"}
+                },
+                "required": ["question_text", "options", "correct_option_id", "explanation"]
+            },
+            "minItems": 5,
+            "maxItems": 5
+        }
+    },
+    "required": ["questions"]
+}
+
+
