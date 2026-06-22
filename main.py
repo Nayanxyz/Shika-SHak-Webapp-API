@@ -362,3 +362,12 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
+async def rate_limit_dependency(request: Request, user: Dict = Depends(AuthManager.get_current_user)):
+    if not await rate_limiter.is_allowed(user["user_id"]):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit: {Config.RATE_LIMIT_REQUESTS} req/{Config.RATE_LIMIT_WINDOW}s"
+        )
+    return user
+
+
