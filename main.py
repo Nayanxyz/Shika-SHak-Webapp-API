@@ -401,3 +401,18 @@ class SupabaseService:
             logger.error(f"Supabase store_session error: {e}")
             return None
 
+    @staticmethod
+    async def get_session_history(user_id: str, limit: int = 20, offset: int = 0):
+        try:
+            result = supabase_client.table("sessions")\
+                .select("*")\
+                .eq("user_id", user_id)\
+                .order("created_at", desc=True)\
+                .range(offset, offset + limit - 1)\
+                .execute()
+            return {"sessions": result.data, "total": len(result.data)}
+        except Exception as e:
+            logger.error(f"History error: {e}")
+            raise HTTPException(status_code=500, detail="Failed to fetch history")
+
+
