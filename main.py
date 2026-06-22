@@ -335,3 +335,30 @@ class RateLimiter:
         if self._redis:
             await self._redis.close()
 
+    async def is_allowed(self, key: str) -> bool:
+        if not self._redis:
+            return True
+        try:
+            now = time.time()
+            window_start = now - Config.RATE_LIMIT_WINDOW
+            pipe = self._redis.pipeline()
+            pipe.zremrangebyscore(f"rate_limit:{key}", 0, window_start)
+            pipe.zcard(f"rate_limit:{key}")
+            _, current = await pipe.execute()
+
+            if current >= Config.RATE_LIMIT_REQUESTS:
+                return False
+
+            pipe = self._redis.pipeline()
+            pipe.zadd(f"rate_limit:{key}", {str(now): now})
+            pipe.expire(f"rate_limit:{key}", Config.RATE_LIMIT_WINDOW)
+            await pipe.execute()
+            return True
+        except Exception as e:
+            logger.warning(f"Rate limit check error: {e}")
+            return True
+
+
+rate_limiter = RateLimiter()
+
+
