@@ -467,3 +467,17 @@ class MathPhysicsValidator:
         return True
 
 
+class ChemistryValidator:
+    def validate(self, questions: List[Dict]) -> bool:
+        for q_idx, q in enumerate(questions):
+            options = q.get("options", [])
+            if len(options) != 4:
+                logger.error(f"[Q{q_idx+1}] Expected 4 options, got {len(options)}")
+                return False
+            texts = [opt["text"].strip() for opt in options]
+            if len(set(texts)) != len(options):
+                logger.error(f"[Q{q_idx+1}] Duplicate option text detected")
+                return False
+        return True
+
+
