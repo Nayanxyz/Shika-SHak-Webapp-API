@@ -299,3 +299,20 @@ class AuthManager:
             logger.warning(f"Supabase token verification failed: {e}")
             return None
 
+    @classmethod
+    async def get_current_user(cls, credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+        if not credentials:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        payload = cls.verify_token(credentials.credentials)
+        if not payload:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        return {"user_id": payload["sub"], "email": payload["email"]}
+
