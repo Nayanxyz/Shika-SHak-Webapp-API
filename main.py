@@ -416,3 +416,20 @@ class SupabaseService:
             raise HTTPException(status_code=500, detail="Failed to fetch history")
 
 
+# 8. VALIDATORS
+
+class MathPhysicsValidator:
+    SKIP_TOKENS = ["\\lim", "\\matrix", "\\begin", "\\cases", "\\sum", "\\int", "\\prod"]
+
+    def _clean(self, text: str) -> str:
+        return text.replace("$", "").strip()
+
+    def _should_skip(self, latex: str) -> bool:
+        return any(t in latex for t in self.SKIP_TOKENS)
+
+    def _parse(self, latex: str) -> Optional[Expr]:
+        try:
+            return parse_latex(latex)
+        except Exception:
+            return None
+
