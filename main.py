@@ -316,3 +316,22 @@ class AuthManager:
             )
         return {"user_id": payload["sub"], "email": payload["email"]}
 
+# 6. RATE LIMITING
+
+class RateLimiter:
+    def __init__(self):
+        self._redis: Optional[redis.Redis] = None
+
+    async def connect(self):
+        try:
+            self._redis = redis.from_url(Config.REDIS_URL, decode_responses=True)
+            await self._redis.ping()
+            logger.info("Rate limiter Redis connected")
+        except Exception as e:
+            logger.warning(f"Rate limiter Redis failed: {e}")
+            self._redis = None
+
+    async def disconnect(self):
+        if self._redis:
+            await self._redis.close()
+
