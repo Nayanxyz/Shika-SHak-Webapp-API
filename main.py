@@ -433,3 +433,37 @@ class MathPhysicsValidator:
         except Exception:
             return None
 
+    def validate(self, questions: List[Dict]) -> bool:
+        for q_idx, q in enumerate(questions):
+            options = q.get("options", [])
+            if len(options) != 4:
+                logger.error(f"[Q{q_idx+1}] Expected 4 options, got {len(options)}")
+                return False
+
+            texts = [self._clean(opt["text"]) for opt in options]
+            if len(set(texts)) != len(options):
+                logger.error(f"[Q{q_idx+1}] Duplicate option text detected")
+                return False
+
+            parsed = []
+            for opt in options:
+                clean = self._clean(opt["text"])
+                if self._should_skip(clean):
+                    continue
+                expr = self._parse(clean)
+                if expr is not None:
+                    parsed.append((opt["id"], expr))
+
+            for i in range(len(parsed)):
+                for j in range(i + 1, len(parsed)):
+                    id1, e1 = parsed[i]
+                    id2, e2 = parsed[j]
+                    try:
+                        if simplify(e1 - e2) == 0 or simplify(e1).equals(simplify(e2)):
+                            logger.error(f"[Q{q_idx+1}] Identical options: {id1} and {id2}")
+                            return False
+                    except Exception:
+                        continue
+        return True
+
+
