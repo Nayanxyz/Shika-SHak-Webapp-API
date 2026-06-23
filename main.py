@@ -620,3 +620,25 @@ Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double back
 
         return None
 
+    def _validate_questions(self, questions: List[Dict]) -> bool:
+        if not questions or len(questions) != 5:
+            logger.warning(f"Expected 5 questions, got {len(questions) if questions else 0}")
+            return False
+        for q_idx, q in enumerate(questions):
+            required_keys = ["question_text", "options", "correct_option_id", "explanation"]
+            missing_keys = [k for k in required_keys if k not in q]
+            if missing_keys:
+                logger.warning(f"[Q{q_idx+1}] Missing keys: {missing_keys}")
+                return False
+            if len(q.get("options", [])) != 4:
+                logger.warning(f"[Q{q_idx+1}] Expected 4 options, got {len(q.get('options', []))}")
+                return False
+            opt_ids = [opt["id"] for opt in q["options"]]
+            if set(opt_ids) != {"A", "B", "C", "D"}:
+                logger.warning(f"[Q{q_idx+1}] Invalid option IDs: {opt_ids}")
+                return False
+            if q["correct_option_id"] not in {"A", "B", "C", "D"}:
+                logger.warning(f"[Q{q_idx+1}] Invalid correct_option_id: {q['correct_option_id']}")
+                return False
+        return True
+
