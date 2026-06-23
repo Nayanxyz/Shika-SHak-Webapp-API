@@ -734,3 +734,30 @@ class RoomManager:
         self.player_rooms: Dict[str, str] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
 
+    def start_cleanup(self):
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    async def _cleanup_loop(self):
+        while True:
+            await asyncio.sleep(Config.ROOM_CLEANUP_INTERVAL)
+            await self._cleanup_old_rooms()
+
+    async def _cleanup_old_rooms(self):
+        now = time.time()
+        to_remove = []
+        for code, room in self.rooms.items():
+            if room.status == GameStatus.FINISHED and now - room.last_activity > 600:
+                to_remove.append(code)
+            elif room.status == GameStatus.WAITING and now - room.created_at > Config.ROOM_MAX_IDLE:
+                to_remove.append(code)
+            elif not any(p.is_connected for p in room.players.values()):
+                to_remove.append(code)
+
+        for code in to_remove:
+            room = self.rooms.pop(code, None)
+            if room:
+                for sid in list(room.players.keys()):
+                    self.player_rooms.pop(sid, None)
+                logger.info(f"Cleaned up room {code}")
+
