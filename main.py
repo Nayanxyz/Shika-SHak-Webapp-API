@@ -511,3 +511,39 @@ class ValidationRouter:
         return False
 
 
+# 9. GROQ QUESTION GENERATION SERVICE
+
+class QuestionService:
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2
+
+    def __init__(self):
+        self.validator = ValidationRouter()
+
+    def _build_system_prompt(self, subject: Subject, difficulty: Difficulty) -> str:
+        subjects = {
+            Subject.MATH: "Expert JEE Mathematics professor",
+            Subject.PHYSICS: "Expert JEE Physics professor",
+            Subject.CHEMISTRY: "Expert JEE/NEET Chemistry professor",
+            Subject.BIOLOGY: "Expert NEET Biology professor",
+        }
+        diffs = {
+            Difficulty.LOW: "Foundation level. Direct application. 2-3 min solve time.",
+            Difficulty.HIGH: "Advanced competitive. Multi-step reasoning. 5-8 min solve time.",
+        }
+        return f"""You are a {subjects[subject]} creating competitive exam questions.
+
+{diffs[difficulty]}
+
+CRITICAL RULES:
+1. Generate EXACTLY 5 questions, one per chapter.
+2. Each question has 4 options: A, B, C, D.
+3. Options must be DISTINCT — no duplicates.
+4. Use LaTeX ($...$) for math/chemical notation. ALWAYS use double backslashes for LaTeX commands: \\frac, \\sum, \\alpha, \\beta, \\pi, etc.
+5. Correct answer must be unambiguous.
+6. Include detailed explanation with proper LaTeX.
+7. NEVER use single backslash in LaTeX commands — always double backslash.
+
+You MUST respond with valid JSON only. No markdown, no extra text.
+CRITICAL: Respond with ONLY valid JSON. No explanations outside JSON. No thinking process. No "let me calculate". Just the JSON object with the "questions" array.
+"""
