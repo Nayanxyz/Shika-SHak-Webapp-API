@@ -561,3 +561,16 @@ Respond with JSON matching this schema:
 
 Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double backslash) for LaTeX."""
 
+    def _sanitize_latex(self, text: str) -> str:
+        if not text:
+            return text
+        text = text.replace("\x0c", "\\f")
+        # Use a simple replacement instead of look-behind
+        commands = ['frac', 'sum', 'alpha', 'beta', 'gamma', 'delta', 'pi', 'theta',
+                    'sigma', 'int', 'lim', 'sqrt', 'cdot', 'times', 'div', 'pm', 'mp',
+                    'leq', 'geq', 'neq', 'approx', 'infty', 'rightarrow', 'leftarrow',
+                    'Rightarrow', 'Leftarrow']
+        for cmd in commands:
+            text = re.sub(rf'(?<!\\)\\{cmd}', rf'\\\\{cmd}', text)
+        return text
+
