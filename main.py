@@ -547,3 +547,17 @@ CRITICAL RULES:
 You MUST respond with valid JSON only. No markdown, no extra text.
 CRITICAL: Respond with ONLY valid JSON. No explanations outside JSON. No thinking process. No "let me calculate". Just the JSON object with the "questions" array.
 """
+
+    def _build_user_prompt(self, subject: Subject, difficulty: Difficulty, chapters: List[ChapterMixItem]) -> str:
+        chapters_text = "\n".join(f"{i+1}. [{ch.id}] {ch.name}" for i, ch in enumerate(chapters))
+        schema_hint = json.dumps(QUESTION_JSON_SCHEMA, indent=2)
+        return f"""Generate 5 MCQ questions for {subject.value} ({difficulty.value}).
+
+CHAPTERS:
+{chapters_text}
+
+Respond with JSON matching this schema:
+{schema_hint}
+
+Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double backslash) for LaTeX."""
+
