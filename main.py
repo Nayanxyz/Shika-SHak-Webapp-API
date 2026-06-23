@@ -687,3 +687,24 @@ Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double back
         raise HTTPException(status_code=422, detail="Failed to generate valid questions after retries")
 
 
+# 10. GAME STATE (In-Memory with Cleanup)
+
+
+@dataclass
+class Player:
+    sid: str
+    user_id: str
+    name: str
+    is_host: bool = False
+    is_connected: bool = True
+    total_score: int = 0
+    correct_count: int = 0
+    wrong_count: int = 0
+    unanswered_count: int = 0
+    current_streak: int = 0
+    max_streak: int = 0
+    total_time_ms: int = 0
+    answers: Dict[int, Dict] = field(default_factory=dict)
+    joined_at: float = field(default_factory=time.time)
+
+
