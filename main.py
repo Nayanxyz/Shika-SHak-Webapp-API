@@ -761,3 +761,10 @@ class RoomManager:
                     self.player_rooms.pop(sid, None)
                 logger.info(f"Cleaned up room {code}")
 
+    def generate_code(self) -> str:
+        import random, string
+        while True:
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            if code not in self.rooms:
+                return code
+
