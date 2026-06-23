@@ -574,3 +574,49 @@ Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double back
             text = re.sub(rf'(?<!\\)\\{cmd}', rf'\\\\{cmd}', text)
         return text
 
+    def _parse_response(self, content: str) -> Optional[List[Dict]]:
+        """Parse Groq JSON response with fallback cleaning."""
+        if not content:
+            return None
+
+        # Try direct parse
+        try:
+            data = json.loads(content)
+            questions = data.get("questions", [])
+            # Sanitize LaTeX in questions
+            for q in questions:
+                q["question_text"] = self._sanitize_latex(q.get("question_text", ""))
+                q["explanation"] = self._sanitize_latex(q.get("explanation", ""))
+                for opt in q.get("options", []):
+                    opt["text"] = self._sanitize_latex(opt.get("text", ""))
+            return questions
+        except json.JSONDecodeError:
+            pass
+
+        try:
+            match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', content, re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+                return data.get("questions", [])
+        except Exception:
+            pass
+
+        try:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                data = json.loads(content[start:end])
+                return data.get("questions", [])
+        except Exception:
+            pass
+
+        try:
+            start = content.find("[")
+            end = content.rfind("]") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+        except Exception:
+            pass
+
+        return None
+
