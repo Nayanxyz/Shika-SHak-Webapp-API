@@ -728,3 +728,9 @@ class GameRoom:
     last_activity: float = field(default_factory=time.time)
 
 
+class RoomManager:
+    def __init__(self):
+        self.rooms: Dict[str, GameRoom] = {}
+        self.player_rooms: Dict[str, str] = {}
+        self._cleanup_task: Optional[asyncio.Task] = None
+
