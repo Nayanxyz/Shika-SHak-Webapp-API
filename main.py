@@ -708,3 +708,23 @@ class Player:
     joined_at: float = field(default_factory=time.time)
 
 
+@dataclass
+class GameRoom:
+    room_code: str
+    mode: GameMode
+    subject: Subject
+    difficulty: Difficulty
+    chapters: List[ChapterMixItem]
+    questions: List[dict] = field(default_factory=list)
+    players: Dict[str, Player] = field(default_factory=dict)
+    status: GameStatus = GameStatus.WAITING
+    max_players: int = 4
+    time_per_question: int = 60
+    current_question_index: int = -1
+    question_start_time: Optional[float] = None
+    question_timer_task: Optional[asyncio.Task] = None
+    final_rankings: List[dict] = field(default_factory=list)
+    created_at: float = field(default_factory=time.time)
+    last_activity: float = field(default_factory=time.time)
+
+
