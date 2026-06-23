@@ -642,3 +642,48 @@ Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double back
                 return False
         return True
 
+    async def generate(self, subject: Subject, difficulty: Difficulty, chapters: List[ChapterMixItem]) -> List[Dict]:
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            logger.info(f"Groq generation attempt {attempt}/{self.MAX_RETRIES}")
+
+            try:
+                completion = groq_client.chat.completions.create(
+                    model=Config.GROQ_MODEL,
+                    messages=[
+                        {"role": "system", "content": self._build_system_prompt(subject, difficulty)},
+                        {"role": "user", "content": self._build_user_prompt(subject, difficulty, chapters)},
+                    ],
+                    temperature=0.7,
+                    max_tokens=4096,
+                    response_format={"type": "json_object"},
+                )
+
+                content = completion.choices[0].message.content
+                if not content:
+                    logger.warning("Empty response from Groq")
+                    continue
+
+                questions = self._parse_response(content)
+
+                if not questions:
+                    logger.warning("Failed to parse questions from response")
+                    continue
+
+                if not self._validate_questions(questions):
+                    logger.warning(f"Validation failed: {len(questions)} questions")
+                    continue
+
+                if self.validator.route_and_verify(subject, questions):
+                    logger.info("Questions generated and validated successfully")
+                    return questions
+                else:
+                    logger.warning("Subject validation failed, retrying...")
+
+            except Exception as e:
+                logger.error(f"Groq error: {e}")
+                if attempt < self.MAX_RETRIES:
+                    await asyncio.sleep(self.RETRY_DELAY * attempt)
+
+        raise HTTPException(status_code=422, detail="Failed to generate valid questions after retries")
+
+
