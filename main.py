@@ -1038,3 +1038,26 @@ async def on_rejoin(sid, data):
         logger.error(f"Rejoin error: {e}")
         await sio.emit("error", {"message": "Failed to rejoin"}, to=sid)
 
+@sio.on("leave_room")
+async def on_leave(sid, data):
+    try:
+        room = room_manager.leave(sid)
+        if room:
+            # If they leave during an active battle or leaderboard
+            if room.status in [GameStatus.STARTING, GameStatus.PLAYING, GameStatus.ANSWER_PHASE, GameStatus.LEADERBOARD,
+                               GameStatus.FINISHED]:
+                await sio.emit("room_forfeited", {"message": "A player disconnected. Match forfeited."},
+                               room=room.room_code)
+                # Nuke the room from memory completely
+                room_manager.rooms.pop(room.room_code, None)
+            else:
+                # Normal lobby leave
+                await sio.emit("player_left", {
+                    "sid": sid,
+                    "players": [{"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected} for
+                                p in room.players.values()]
+                }, room=room.room_code)
+    except Exception as e:
+        logger.error(f"Leave room error: {e}")
+        await sio.emit("error", {"message": "Failed to leave room"}, to=sid)
+
