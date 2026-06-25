@@ -1061,3 +1061,35 @@ async def on_leave(sid, data):
         logger.error(f"Leave room error: {e}")
         await sio.emit("error", {"message": "Failed to leave room"}, to=sid)
 
+@sio.on("kick_player")
+async def on_kick(sid, data):
+    try:
+        room = room_manager.get_by_sid(sid)
+        if not room or not room.players.get(sid, Player("", "", "")).is_host:
+            await sio.emit("error", {"message": "Only host can kick players"}, to=sid)
+            return
+
+        target_sid = data.get("target_sid")
+        if not target_sid or target_sid not in room.players:
+            await sio.emit("error", {"message": "Player not found"}, to=sid)
+            return
+
+        if target_sid == sid:
+            await sio.emit("error", {"message": "Cannot kick yourself"}, to=sid)
+            return
+
+        room_manager.remove_player(target_sid)
+        await sio.leave_room(target_sid, room.room_code)
+
+        await sio.emit("kicked", {"room_code": room.room_code}, to=target_sid)
+        await sio.emit("player_kicked", {
+            "sid": target_sid,
+            "players": [
+                {"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected}
+                for p in room.players.values()
+            ]
+        }, room=room.room_code)
+    except Exception as e:
+        logger.error(f"Kick player error: {e}")
+        await sio.emit("error", {"message": "Failed to kick player"}, to=sid)
+
