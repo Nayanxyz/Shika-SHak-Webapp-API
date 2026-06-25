@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 import redis.asyncio as redis
 import random
 import jwt
-
 from supabase import create_client, Client
 from sympy import simplify
 from sympy.parsing.latex import parse_latex
