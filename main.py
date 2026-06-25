@@ -1381,3 +1381,35 @@ async def create_token_endpoint(user_id: str = "demo_user", email: str = "demo@e
         "expires_in": Config.JWT_EXPIRE_MINUTES * 60
     }
 
+@app.post("/api/v1/exams/generate", response_model=ExamResponse)
+async def generate_exam(request: ExamGenerationRequest, user: Dict = Depends(rate_limit_dependency)):
+    chapters_dict = [ch.model_dump() for ch in request.chapter_mix]
+    cached = await cache_manager.get(request.subject.value, request.difficulty.value, chapters_dict)
+
+    if cached:
+        questions = [Question(id=i+1, chapter_id=request.chapter_mix[i].id, chapter_name=request.chapter_mix[i].name, **q)
+                      for i, q in enumerate(cached["questions"])]
+        return ExamResponse(
+            subject=request.subject,
+            difficulty=request.difficulty,
+            questions=questions,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            cached=True,
+            exam_id=cached.get("exam_id")
+        )
+
+    service = QuestionService()
+    raw_questions = await service.generate(request.subject, request.difficulty, request.chapter_mix)
+
+    await cache_manager.set(request.subject.value, request.difficulty.value, chapters_dict, {"questions": raw_questions})
+
+    questions = [Question(id=i+1, chapter_id=request.chapter_mix[i].id, chapter_name=request.chapter_mix[i].name, **q) for i, q in enumerate(raw_questions)]
+    return ExamResponse(
+        subject=request.subject,
+        difficulty=request.difficulty,
+        questions=questions,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        cached=False
+    )
+
+
