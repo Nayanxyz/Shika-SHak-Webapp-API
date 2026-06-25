@@ -7,26 +7,33 @@ import uuid
 import hashlib
 import re
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 import socketio
-from fastapi import FastAPI, HTTPException, Depends, Request, Body
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Depends, Request, Body, Response
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 import redis.asyncio as redis
+import random
 import jwt
 
 from supabase import create_client, Client
 
-from sympy import simplify
-from sympy.parsing.latex import parse_latex
-from sympy.core.expr import Expr
+try:
+    from sympy import simplify
+    from sympy.parsing.latex import parse_latex
+    from sympy.core.expr import Expr
+    SYMPY_LATEX_AVAILABLE = True
+except ImportError:
+    SYMPY_LATEX_AVAILABLE = False
+    simplify = None  # type: ignore
+    parse_latex = None  # type: ignore
+    Expr = None  # type: ignore
 
 from groq import Groq
 
@@ -43,6 +50,7 @@ logger = logging.getLogger(__name__)
 
 class Config:
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    GROQ_API_KEY_BACKUP = os.getenv("GROQ_API_KEY_BACKUP")
     GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -64,11 +72,9 @@ class Config:
     GAME_TIME_PER_QUESTION = int(os.getenv("GAME_TIME_PER_QUESTION", "60"))
     MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "4"))
 
-    # Session cleanup intervals
-    PRACTICE_SESSION_TTL = int(os.getenv("PRACTICE_SESSION_TTL", "3600"))  # 1 hour
-    ROOM_CLEANUP_INTERVAL = int(os.getenv("ROOM_CLEANUP_INTERVAL", "300"))  # 5 minutes
-    ROOM_MAX_IDLE = int(os.getenv("ROOM_MAX_IDLE", "1800"))  # 30 minutes
-
+    PRACTICE_SESSION_TTL = int(os.getenv("PRACTICE_SESSION_TTL", "3600"))
+    ROOM_CLEANUP_INTERVAL = int(os.getenv("ROOM_CLEANUP_INTERVAL", "300"))
+    ROOM_MAX_IDLE = int(os.getenv("ROOM_MAX_IDLE", "1800"))
 
 REQUIRED = [
     ("GROQ_API_KEY", Config.GROQ_API_KEY),
@@ -81,9 +87,19 @@ missing = [name for name, val in REQUIRED if not val]
 if missing:
     raise RuntimeError(f"Missing required env vars: {', '.join(missing)}")
 
-groq_client = Groq(api_key=Config.GROQ_API_KEY)
+groq_primary = Groq(api_key=Config.GROQ_API_KEY, max_retries=0)
+groq_backup = Groq(api_key=Config.GROQ_API_KEY_BACKUP, max_retries=0) if Config.GROQ_API_KEY_BACKUP else None
+
 supabase_client: Client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
 
+_shared_redis: Optional[redis.Redis] = None
+
+async def get_redis() -> redis.Redis:
+    global _shared_redis
+    if _shared_redis is None:
+        _shared_redis = redis.from_url(Config.REDIS_URL, decode_responses=True)
+        await _shared_redis.ping()
+    return _shared_redis
 
 # 2. REDIS CACHE
 
@@ -94,16 +110,14 @@ class CacheManager:
 
     async def connect(self):
         try:
-            self._redis = redis.from_url(Config.REDIS_URL, decode_responses=True)
-            await self._redis.ping()
-            logger.info("Redis connected")
+            self._redis = await get_redis()
+            logger.info("Redis connected (shared)")
         except Exception as e:
             logger.warning(f"Redis failed: {e}. Caching disabled.")
             self._redis = None
 
     async def disconnect(self):
-        if self._redis:
-            await self._redis.close()
+        pass
 
     def _key(self, subject: str, difficulty: str, chapters: List[Dict]) -> str:
         chapters_str = json.dumps(chapters, sort_keys=True)
@@ -138,9 +152,7 @@ class CacheManager:
         except Exception as e:
             logger.warning(f"Cache invalidate error: {e}")
 
-
 cache_manager = CacheManager()
-
 
 # 3. MODELS
 
@@ -150,16 +162,13 @@ class Subject(str, Enum):
     CHEMISTRY = "CHEMISTRY"
     BIOLOGY = "BIOLOGY"
 
-
 class Difficulty(str, Enum):
     LOW = "LOW"
     HIGH = "HIGH"
 
-
 class GameMode(str, Enum):
     PRACTICE = "PRACTICE"
     BATTLE = "BATTLE"
-
 
 class GameStatus(str, Enum):
     WAITING = "WAITING"
@@ -169,11 +178,9 @@ class GameStatus(str, Enum):
     LEADERBOARD = "LEADERBOARD"
     FINISHED = "FINISHED"
 
-
 class ChapterMixItem(BaseModel):
     id: str = Field(..., min_length=1, max_length=20)
     name: str = Field(..., min_length=1, max_length=200)
-
 
 class ExamGenerationRequest(BaseModel):
     subject: Subject
@@ -188,11 +195,9 @@ class ExamGenerationRequest(BaseModel):
             raise ValueError("Chapter IDs must be unique")
         return v
 
-
 class Option(BaseModel):
     id: str = Field(..., pattern="^[A-D]$")
     text: str = Field(..., min_length=1)
-
 
 class Question(BaseModel):
     id: int
@@ -204,7 +209,6 @@ class Question(BaseModel):
     explanation: str
     difficulty: Difficulty
 
-
 class ExamResponse(BaseModel):
     subject: Subject
     difficulty: Difficulty
@@ -213,12 +217,10 @@ class ExamResponse(BaseModel):
     cached: bool = False
     exam_id: Optional[str] = None
 
-
 class PracticeAnswerRequest(BaseModel):
     session_id: str
     question_number: int = Field(..., ge=1, le=5)
     selected_option: Optional[str] = Field(None, pattern="^[A-D]$")
-
 
 class PracticeResultsResponse(BaseModel):
     session_id: str
@@ -227,7 +229,6 @@ class PracticeResultsResponse(BaseModel):
     wrong_count: int
     accuracy: float
     completed: bool
-
 
 # 4. GROQ JSON SCHEMA
 
@@ -265,31 +266,30 @@ QUESTION_JSON_SCHEMA = {
     "required": ["questions"]
 }
 
-
 # 5. AUTHENTICATION
 
 security = HTTPBearer(auto_error=False)
 
-
 class AuthManager:
     @staticmethod
-    def verify_token(token: str) -> Optional[Dict]:
-        """
-        Verify a Supabase JWT by checking the user with Supabase server-side.
-        This handles both HS256 and ECC tokens.
-        """
-        try:
-            # Use Supabase client to verify the token
-            # Set the auth token temporarily
-            supabase_client.auth.set_session(token, "")
-            # Get the user - this validates the token with Supabase
-            response = supabase_client.auth.get_user()
-            user = response.user
+    def create_token(user_id: str, email: str) -> str:
+        payload = {
+            "sub": user_id,
+            "email": email,
+            "exp": datetime.now(timezone.utc).timestamp() + Config.JWT_EXPIRE_MINUTES * 60,
+            "iat": datetime.now(timezone.utc).timestamp(),
+        }
+        return jwt.encode(payload, Config.JWT_SECRET, algorithm=Config.JWT_ALGORITHM)
 
+    @staticmethod
+    def verify_token(token: str) -> Optional[Dict]:
+
+        try:
+            response = supabase_client.auth.get_user(token)
+            user = response.user
             if not user:
                 logger.warning("Supabase auth returned no user")
                 return None
-
             return {
                 "sub": user.id,
                 "email": user.email,
@@ -324,16 +324,14 @@ class RateLimiter:
 
     async def connect(self):
         try:
-            self._redis = redis.from_url(Config.REDIS_URL, decode_responses=True)
-            await self._redis.ping()
-            logger.info("Rate limiter Redis connected")
+            self._redis = await get_redis()
+            logger.info("Rate limiter Redis connected (shared)")
         except Exception as e:
             logger.warning(f"Rate limiter Redis failed: {e}")
             self._redis = None
 
     async def disconnect(self):
-        if self._redis:
-            await self._redis.close()
+        pass
 
     async def is_allowed(self, key: str) -> bool:
         if not self._redis:
@@ -342,25 +340,23 @@ class RateLimiter:
             now = time.time()
             window_start = now - Config.RATE_LIMIT_WINDOW
             pipe = self._redis.pipeline()
-            pipe.zremrangebyscore(f"rate_limit:{key}", 0, window_start)
-            pipe.zcard(f"rate_limit:{key}")
+            await pipe.zremrangebyscore(f"rate_limit:{key}", 0, window_start)
+            await pipe.zcard(f"rate_limit:{key}")
             _, current = await pipe.execute()
 
             if current >= Config.RATE_LIMIT_REQUESTS:
                 return False
 
             pipe = self._redis.pipeline()
-            pipe.zadd(f"rate_limit:{key}", {str(now): now})
-            pipe.expire(f"rate_limit:{key}", Config.RATE_LIMIT_WINDOW)
+            await pipe.zadd(f"rate_limit:{key}", {str(now): now})
+            await pipe.expire(f"rate_limit:{key}", Config.RATE_LIMIT_WINDOW)
             await pipe.execute()
             return True
         except Exception as e:
             logger.warning(f"Rate limit check error: {e}")
             return True
 
-
 rate_limiter = RateLimiter()
-
 
 async def rate_limit_dependency(request: Request, user: Dict = Depends(AuthManager.get_current_user)):
     if not await rate_limiter.is_allowed(user["user_id"]):
@@ -371,52 +367,7 @@ async def rate_limit_dependency(request: Request, user: Dict = Depends(AuthManag
     return user
 
 
-# 7. SUPABASE SERVICE (Minimal - metadata only)
-
-class SupabaseService:
-    @staticmethod
-    async def store_session(user_id: str, subject: str, difficulty: str,
-                           chapter_ids: List[str], mode: str, score: int = 0,
-                           correct_count: int = 0, wrong_count: int = 0,
-                           unanswered_count: int = 0, accuracy: float = 0.0,
-                           total_time_ms: int = 0) -> Optional[str]:
-        try:
-            result = supabase_client.table("sessions").insert({
-                "user_id": user_id,
-                "subject": subject,
-                "difficulty": difficulty,
-                "chapter_ids": chapter_ids,
-                "mode": mode,
-                "score": score,
-                "correct_count": correct_count,
-                "wrong_count": wrong_count,
-                "unanswered_count": unanswered_count,
-                "accuracy": accuracy,
-                "total_time_ms": total_time_ms,
-                "completed": True,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
-            return result.data[0]["id"] if result.data else None
-        except Exception as e:
-            logger.error(f"Supabase store_session error: {e}")
-            return None
-
-    @staticmethod
-    async def get_session_history(user_id: str, limit: int = 20, offset: int = 0):
-        try:
-            result = supabase_client.table("sessions")\
-                .select("*")\
-                .eq("user_id", user_id)\
-                .order("created_at", desc=True)\
-                .range(offset, offset + limit - 1)\
-                .execute()
-            return {"sessions": result.data, "total": len(result.data)}
-        except Exception as e:
-            logger.error(f"History error: {e}")
-            raise HTTPException(status_code=500, detail="Failed to fetch history")
-
-
-# 8. VALIDATORS
+# 7. VALIDATORS
 
 class MathPhysicsValidator:
     SKIP_TOKENS = ["\\lim", "\\matrix", "\\begin", "\\cases", "\\sum", "\\int", "\\prod"]
@@ -427,7 +378,9 @@ class MathPhysicsValidator:
     def _should_skip(self, latex: str) -> bool:
         return any(t in latex for t in self.SKIP_TOKENS)
 
-    def _parse(self, latex: str) -> Optional[Expr]:
+    def _parse(self, latex: str) -> Optional[Any]:
+        if not SYMPY_LATEX_AVAILABLE:
+            return None
         try:
             return parse_latex(latex)
         except Exception:
@@ -466,7 +419,6 @@ class MathPhysicsValidator:
                         continue
         return True
 
-
 class ChemistryValidator:
     def validate(self, questions: List[Dict]) -> bool:
         for q_idx, q in enumerate(questions):
@@ -480,7 +432,6 @@ class ChemistryValidator:
                 return False
         return True
 
-
 class BiologyValidator:
     def validate(self, questions: List[Dict]) -> bool:
         for q_idx, q in enumerate(questions):
@@ -493,7 +444,6 @@ class BiologyValidator:
                 logger.error(f"[Q{q_idx+1}] Duplicate option text detected")
                 return False
         return True
-
 
 class ValidationRouter:
     def __init__(self):
@@ -510,8 +460,7 @@ class ValidationRouter:
             return self.biology.validate(questions)
         return False
 
-
-# 9. GROQ QUESTION GENERATION SERVICE
+# 8. GROQ QUESTION GENERATION SERVICE
 
 class QuestionService:
     MAX_RETRIES = 3
@@ -520,7 +469,7 @@ class QuestionService:
     def __init__(self):
         self.validator = ValidationRouter()
 
-    def _build_system_prompt(self, subject: Subject, difficulty: Difficulty) -> str:
+    def _build_system_prompt(self, subject: Subject, difficulty: Difficulty, expected_count: int) -> str:
         subjects = {
             Subject.MATH: "Expert JEE Mathematics professor",
             Subject.PHYSICS: "Expert JEE Physics professor",
@@ -533,57 +482,53 @@ class QuestionService:
         }
         return f"""You are a {subjects[subject]} creating competitive exam questions.
 
-{diffs[difficulty]}
+        {diffs[difficulty]}
 
-CRITICAL RULES:
-1. Generate EXACTLY 5 questions, one per chapter.
-2. Each question has 4 options: A, B, C, D.
-3. Options must be DISTINCT — no duplicates.
-4. Use LaTeX ($...$) for math/chemical notation. ALWAYS use double backslashes for LaTeX commands: \\frac, \\sum, \\alpha, \\beta, \\pi, etc.
-5. Correct answer must be unambiguous.
-6. Include detailed explanation with proper LaTeX.
-7. NEVER use single backslash in LaTeX commands — always double backslash.
+        CRITICAL RULES:
+        1. Generate EXACTLY {expected_count} questions, one per chapter. NO MORE, NO LESS.
+        2. Each question MUST have 4 options: A, B, C, D.
+        3. Options must be COMPLETELY DIFFERENT — no duplicates, no similar text.
+        4. Use LaTeX ($...$) for math/chemical notation.
+        5. Correct answer must be unambiguous.
+        6. Include detailed explanation with proper LaTeX.
+        7. NEVER write LaTeX commands without the backslash. Always use \\command.
+        8. In JSON, backslashes must be escaped as double backslash.
 
-You MUST respond with valid JSON only. No markdown, no extra text.
-CRITICAL: Respond with ONLY valid JSON. No explanations outside JSON. No thinking process. No "let me calculate". Just the JSON object with the "questions" array.
-"""
+        YOU MUST respond with valid JSON only. The JSON must contain exactly 5 questions.
+        """
 
-    def _build_user_prompt(self, subject: Subject, difficulty: Difficulty, chapters: List[ChapterMixItem]) -> str:
-        chapters_text = "\n".join(f"{i+1}. [{ch.id}] {ch.name}" for i, ch in enumerate(chapters))
+    def _build_user_prompt(self, subject: Subject, difficulty: Difficulty, chapters: List[ChapterMixItem], expected_count: int) -> str:
+        chapters_text = "\n".join(f"{i + 1}. [{ch.id}] {ch.name}" for i, ch in enumerate(chapters))
         schema_hint = json.dumps(QUESTION_JSON_SCHEMA, indent=2)
+        seed = random.randint(1000, 999999)
+
         return f"""Generate 5 MCQ questions for {subject.value} ({difficulty.value}).
 
-CHAPTERS:
-{chapters_text}
+    SEED: {seed}
 
-Respond with JSON matching this schema:
-{schema_hint}
+    CHAPTERS:
+    {chapters_text}
 
-Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double backslash) for LaTeX."""
+    Respond with JSON matching this schema:
+    {schema_hint}
+
+    Remember: ONLY JSON. No other text. Use proper LaTeX inside $...$ like $\\frac{{a}}{{b}}$, $\\sqrt{{x}}$, $\\vec{{a}}$, $\\alpha$, $\\cdot$, etc.
+    In JSON, write LaTeX commands with double backslash: \\\\frac, \\\\sqrt, \\\\cdot, \\\\alpha, etc.
+    """
 
     def _sanitize_latex(self, text: str) -> str:
         if not text:
             return text
-        text = text.replace("\x0c", "\\f")
-        # Use a simple replacement instead of look-behind
-        commands = ['frac', 'sum', 'alpha', 'beta', 'gamma', 'delta', 'pi', 'theta',
-                    'sigma', 'int', 'lim', 'sqrt', 'cdot', 'times', 'div', 'pm', 'mp',
-                    'leq', 'geq', 'neq', 'approx', 'infty', 'rightarrow', 'leftarrow',
-                    'Rightarrow', 'Leftarrow']
-        for cmd in commands:
-            text = re.sub(rf'(?<!\\)\\{cmd}', rf'\\\\{cmd}', text)
+        text = text.replace("\x0c", "\f")
         return text
 
     def _parse_response(self, content: str) -> Optional[List[Dict]]:
-        """Parse Groq JSON response with fallback cleaning."""
         if not content:
             return None
 
-        # Try direct parse
         try:
             data = json.loads(content)
             questions = data.get("questions", [])
-            # Sanitize LaTeX in questions
             for q in questions:
                 q["question_text"] = self._sanitize_latex(q.get("question_text", ""))
                 q["explanation"] = self._sanitize_latex(q.get("explanation", ""))
@@ -620,9 +565,9 @@ Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double back
 
         return None
 
-    def _validate_questions(self, questions: List[Dict]) -> bool:
-        if not questions or len(questions) != 5:
-            logger.warning(f"Expected 5 questions, got {len(questions) if questions else 0}")
+    def _validate_questions(self, questions: List[Dict], expected_count: int) -> bool:
+        if not questions or len(questions) != expected_count:
+            logger.warning(f"Expected {expected_count} questions, got {len(questions) if questions else 0}")
             return False
         for q_idx, q in enumerate(questions):
             required_keys = ["question_text", "options", "correct_option_id", "explanation"]
@@ -643,52 +588,58 @@ Remember: ONLY JSON. No other text. Use \\frac, \\sum, \\alpha etc. (double back
         return True
 
     async def generate(self, subject: Subject, difficulty: Difficulty, chapters: List[ChapterMixItem]) -> List[Dict]:
-        for attempt in range(1, self.MAX_RETRIES + 1):
-            logger.info(f"Groq generation attempt {attempt}/{self.MAX_RETRIES}")
+        expected_count = len(chapters)
+        clients = [(groq_primary, "primary")]
+        if groq_backup:
+            clients.append((groq_backup, "backup"))
 
-            try:
-                completion = groq_client.chat.completions.create(
-                    model=Config.GROQ_MODEL,
-                    messages=[
-                        {"role": "system", "content": self._build_system_prompt(subject, difficulty)},
-                        {"role": "user", "content": self._build_user_prompt(subject, difficulty, chapters)},
-                    ],
-                    temperature=0.7,
-                    max_tokens=4096,
-                    response_format={"type": "json_object"},
-                )
+        for client, name in clients:
+            for attempt in range(1, self.MAX_RETRIES + 1):
+                logger.info(f"Groq {name} attempt {attempt}/{self.MAX_RETRIES}")
 
-                content = completion.choices[0].message.content
-                if not content:
-                    logger.warning("Empty response from Groq")
-                    continue
+                try:
+                    completion = client.chat.completions.create(
+                        model=Config.GROQ_MODEL,
+                        messages=[
+                            {"role": "system", "content": self._build_system_prompt(subject, difficulty, expected_count)},
+                            {"role": "user", "content": self._build_user_prompt(subject, difficulty, chapters, expected_count)},
+                        ],
+                        temperature=0.9,
+                        max_tokens=4096,
+                        response_format={"type": "json_object"},
+                    )
 
-                questions = self._parse_response(content)
+                    content = completion.choices[0].message.content
+                    if not content:
+                        logger.warning(f"Empty response from Groq {name}")
+                        continue
 
-                if not questions:
-                    logger.warning("Failed to parse questions from response")
-                    continue
+                    questions = self._parse_response(content)
 
-                if not self._validate_questions(questions):
-                    logger.warning(f"Validation failed: {len(questions)} questions")
-                    continue
+                    if not questions:
+                        logger.warning(f"Failed to parse questions from {name}")
+                        continue
 
-                if self.validator.route_and_verify(subject, questions):
-                    logger.info("Questions generated and validated successfully")
-                    return questions
-                else:
-                    logger.warning("Subject validation failed, retrying...")
+                    if not self._validate_questions(questions, expected_count):
+                        logger.warning(f"Validation failed on {name}: {len(questions)} questions")
+                        continue
 
-            except Exception as e:
-                logger.error(f"Groq error: {e}")
-                if attempt < self.MAX_RETRIES:
-                    await asyncio.sleep(self.RETRY_DELAY * attempt)
+                    if self.validator.route_and_verify(subject, questions):
+                        logger.info(f"Questions generated via {name}")
+                        return questions
+                    else:
+                        logger.warning(f"Subject validation failed on {name}, retrying...")
 
-        raise HTTPException(status_code=422, detail="Failed to generate valid questions after retries")
+                except Exception as e:
+                    logger.error(f"Groq {name} error: {e}")
+                    if attempt < self.MAX_RETRIES:
+                        await asyncio.sleep(self.RETRY_DELAY * attempt)
 
+            logger.warning(f"Groq {name} failed all retries, trying next...")
 
-# 10. GAME STATE (In-Memory with Cleanup)
+        raise HTTPException(status_code=422, detail="All Groq providers failed after retries")
 
+# 9. GAME STATE (In-Memory with Cleanup)
 
 @dataclass
 class Player:
@@ -706,7 +657,6 @@ class Player:
     total_time_ms: int = 0
     answers: Dict[int, Dict] = field(default_factory=dict)
     joined_at: float = field(default_factory=time.time)
-
 
 @dataclass
 class GameRoom:
@@ -726,7 +676,6 @@ class GameRoom:
     final_rankings: List[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
-
 
 class RoomManager:
     def __init__(self):
@@ -751,8 +700,6 @@ class RoomManager:
                 to_remove.append(code)
             elif room.status == GameStatus.WAITING and now - room.created_at > Config.ROOM_MAX_IDLE:
                 to_remove.append(code)
-            elif not any(p.is_connected for p in room.players.values()):
-                to_remove.append(code)
 
         for code in to_remove:
             room = self.rooms.pop(code, None)
@@ -767,4 +714,91 @@ class RoomManager:
             code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
             if code not in self.rooms:
                 return code
+
+    def create(self, subject: Subject, difficulty: Difficulty, chapters: List[ChapterMixItem],
+               host_sid: str, user_id: str, name: str, max_players: int = 4, time_per_q: int = 60) -> GameRoom:
+        code = self.generate_code()
+        room = GameRoom(
+            room_code=code, mode=GameMode.BATTLE, subject=subject,
+            difficulty=difficulty, chapters=chapters,
+            max_players=max_players, time_per_question=time_per_q
+        )
+        room.players[host_sid] = Player(sid=host_sid, user_id=user_id, name=name, is_host=True)
+        self.player_rooms[host_sid] = code
+        self.rooms[code] = room
+        self.start_cleanup()
+        return room
+
+    def join(self, code: str, sid: str, user_id: str, name: str) -> Optional[GameRoom]:
+        room = self.rooms.get(code.upper())
+        if not room or room.status != GameStatus.WAITING:
+            return None
+        if len(room.players) >= room.max_players:
+            return None
+        room.players[sid] = Player(sid=sid, user_id=user_id, name=name)
+        room.last_activity = time.time()
+        self.player_rooms[sid] = code
+        return room
+
+    def leave(self, sid: str) -> Optional[GameRoom]:
+        code = self.player_rooms.pop(sid, None)
+        if not code:
+            return None
+        room = self.rooms.get(code)
+        if room:
+            if sid in room.players:
+                room.players[sid].is_connected = False
+                room.last_activity = time.time()
+            if room.players.get(sid, Player("", "", "")).is_host and room.status == GameStatus.WAITING:
+                connected = [p for p in room.players.values() if p.is_connected and p.sid != sid]
+                if connected:
+                    connected[0].is_host = True
+                else:
+                    room.status = GameStatus.FINISHED
+        return room
+
+    def remove_player(self, sid: str) -> Optional[GameRoom]:
+        code = self.player_rooms.get(sid)
+        if not code:
+            return None
+        room = self.rooms.get(code)
+        if room and sid in room.players:
+            del room.players[sid]
+            self.player_rooms.pop(sid, None)
+            room.last_activity = time.time()
+            if not room.players:
+                self.rooms.pop(code, None)
+            return room
+        return None
+
+    def get(self, code: str) -> Optional[GameRoom]:
+        return self.rooms.get(code.upper())
+
+    def get_by_sid(self, sid: str) -> Optional[GameRoom]:
+        code = self.player_rooms.get(sid)
+        return self.rooms.get(code) if code else None
+
+    def get_room_info(self, code: str) -> Optional[Dict]:
+        room = self.rooms.get(code.upper())
+        if not room:
+            return None
+        return {
+            "room_code": room.room_code,
+            "status": room.status.value,
+            "subject": room.subject.value,
+            "difficulty": room.difficulty.value,
+            "player_count": len(room.players),
+            "max_players": room.max_players,
+            "players": [
+                {
+                    "sid": p.sid,
+                    "name": p.name,
+                    "is_host": p.is_host,
+                    "is_connected": p.is_connected,
+                }
+                for p in room.players.values()
+            ],
+        }
+
+room_manager = RoomManager()
 
