@@ -1555,3 +1555,6 @@ async def global_handler(request, exc):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
