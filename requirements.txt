@@ -8,3 +8,4 @@ pydantic
 PyJWT
 groq
 sympy
+gunicorn
