@@ -1363,3 +1363,21 @@ async def cors_for_api_only(request, call_next):
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "service": "shik-shak-arena",
+        "model": Config.GROQ_MODEL,
+        "version": "3.1.0",
+        "env": Config.ENV,
+    }
+
+@app.post("/api/v1/auth/token")
+async def create_token_endpoint(user_id: str = "demo_user", email: str = "demo@example.com"):
+    return {
+        "access_token": AuthManager.create_token(user_id, email),
+        "token_type": "bearer",
+        "expires_in": Config.JWT_EXPIRE_MINUTES * 60
+    }
+
