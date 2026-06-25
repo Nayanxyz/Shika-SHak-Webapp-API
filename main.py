@@ -802,3 +802,43 @@ class RoomManager:
 
 room_manager = RoomManager()
 
+# 10. SCORING ENGINE
+
+class ScoringEngine:
+    CORRECT = 4
+    WRONG = -1
+    UNANSWERED = 0
+    BONUS_50 = 0
+    BONUS_25 = 0
+    STREAK_3 = 0
+    STREAK_5 = 0
+
+    @classmethod
+    def calculate(cls, selected: Optional[str], correct: str, time_taken_ms: int, total_time_ms: int, streak: int):
+        is_correct = selected == correct if selected else False
+        time_ratio = time_taken_ms / total_time_ms if total_time_ms > 0 else 1.0
+
+        base = cls.CORRECT if is_correct else (cls.WRONG if selected else cls.UNANSWERED)
+        time_bonus = 0
+        streak_bonus = 0
+        new_streak = streak + 1 if is_correct else 0
+
+        if is_correct:
+            if time_ratio <= 0.25:
+                time_bonus = cls.BONUS_25
+            elif time_ratio <= 0.50:
+                time_bonus = cls.BONUS_50
+            if new_streak >= 5:
+                streak_bonus = cls.STREAK_5
+            elif new_streak >= 3:
+                streak_bonus = cls.STREAK_3
+
+        return {
+            "is_correct": is_correct,
+            "base_score": base,
+            "time_bonus": time_bonus,
+            "streak_bonus": streak_bonus,
+            "total_score": base + time_bonus + streak_bonus,
+            "new_streak": new_streak,
+        }
+
