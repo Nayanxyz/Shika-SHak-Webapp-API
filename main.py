@@ -911,3 +911,46 @@ async def disconnect(sid):
             "players": [{"sid": p.sid, "name": p.name, "is_host": p.is_host} for p in active_players]
         }, room=room.room_code)
 
+@sio.on("create_room")
+async def on_create(sid, data):
+    try:
+        payload = normalize_payload(data)
+        all_chapters = [ChapterMixItem(**c) for c in payload["chapter_mix"]]
+
+        room = room_manager.create(
+            Subject(payload["subject"]),
+            Difficulty(payload["difficulty"]),
+            all_chapters,
+            sid,
+            payload.get("user_id", f"user_{sid[:8]}"),
+            payload.get("player_name", "Player"),
+            min(int(payload.get("max_players", 4)), 8),
+            min(int(payload.get("time_per_question", 60)), 300)
+        )
+
+        await sio.enter_room(sid, room.room_code)
+
+        await sio.emit("room_created", {
+            "room_code": room.room_code,
+            "mode": room.mode.value,
+            "subject": room.subject.value,
+            "difficulty": room.difficulty.value,
+            "players": [{"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected} for p in
+                        room.players.values()],
+            "is_host": True
+        }, to=sid)
+
+        service = QuestionService()
+        room.questions = await service.generate(room.subject, room.difficulty, all_chapters)
+
+        for idx, q in enumerate(room.questions):
+            q["question_number"] = idx + 1
+
+        await sio.emit("questions_ready", {"ready": True}, room=room.room_code)
+
+    except Exception as e:
+        logger.error(f"WebSocket Room Configuration Critical Crash: {e}", exc_info=True)
+        await sio.emit("error", {"message": f"Initialization runtime error: {e}"}, to=sid)
+        await sio.emit("generation_failed", {"message": "AI overloaded, please try again."}, to=sid)
+
+
