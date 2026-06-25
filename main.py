@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-
+from groq import Groq
 import socketio
 from fastapi import FastAPI, HTTPException, Depends, Request, Body, Response
 from fastapi.responses import JSONResponse
@@ -31,11 +31,11 @@ try:
     SYMPY_LATEX_AVAILABLE = True
 except ImportError:
     SYMPY_LATEX_AVAILABLE = False
-    simplify = None  # type: ignore
-    parse_latex = None  # type: ignore
-    Expr = None  # type: ignore
+    simplify = None
+    parse_latex = None
+    Expr = None
 
-from groq import Groq
+
 
 load_dotenv()
 
