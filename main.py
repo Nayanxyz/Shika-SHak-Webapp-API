@@ -1550,3 +1550,8 @@ async def practice_results(session_id: str, user: Dict = Depends(AuthManager.get
         "completed": len(answers) >= len(session["questions"]),
     }
 
+@app.exception_handler(Exception)
+async def global_handler(request, exc):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
