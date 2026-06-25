@@ -1107,3 +1107,216 @@ async def on_get_room_info(sid, data):
         logger.error(f"Get room info error: {e}")
 
 
+@sio.on("start_game")
+async def on_start(sid, data):
+    room = room_manager.get_by_sid(sid)
+    if not room or not room.players.get(sid, Player("", "", "")).is_host or not room.questions or room.status != GameStatus.WAITING:
+        return
+    room.status = GameStatus.STARTING
+
+    # 1. Emit the signal to force the React router to change pages
+    await sio.emit("game_starting", {"room_code": room.room_code}, room=room.room_code)
+
+    # 2. WAIT for 1.5 seconds so the browser can actually load the BattleGame screen
+    await asyncio.sleep(1.5)
+
+    # 3. Now drop the first question
+    await start_question(room, 0)
+
+async def start_question(room: GameRoom, idx: int):
+    if room.question_timer_task and not room.question_timer_task.done():
+        room.question_timer_task.cancel()
+        try:
+            await room.question_timer_task
+        except asyncio.CancelledError:
+            pass
+
+    room.current_question_index = idx
+    room.status = GameStatus.PLAYING
+    room.question_start_time = time.time()
+    room.last_activity = time.time()
+    q = room.questions[idx]
+
+    await sio.emit("question_start", {
+        "question_number": idx + 1,
+        "total_questions": len(room.questions),
+        "question_text": q["question_text"],
+        "options": q["options"],
+        "time_limit": room.time_per_question,
+    }, room=room.room_code)
+
+    room.question_timer_task = asyncio.create_task(question_timer(room, idx))
+
+async def question_timer(room: GameRoom, idx: int):
+    try:
+        for remaining in range(room.time_per_question - 1, -1, -1):
+            await asyncio.sleep(1)
+            room.last_activity = time.time()
+
+            if room_manager.get(room.room_code) is not room or room.current_question_index != idx:
+                return
+
+            await sio.emit("timer_tick", {
+                "question_number": idx + 1,
+                "remaining": remaining
+            }, room=room.room_code)
+
+            connected = [p for p in room.players.values() if p.is_connected]
+            if connected and all((idx + 1) in p.answers for p in connected):
+                return
+
+        await show_results(room)
+
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.error(f"Timer error: {e}")
+
+@sio.on("submit_answer")
+async def on_answer(sid, data):
+    try:
+        if not isinstance(data, dict):
+            await sio.emit("error", {"message": "Invalid data"}, to=sid)
+            return
+
+        room = room_manager.get(data.get("room_code", ""))
+        if not room or room.status != GameStatus.PLAYING:
+            await sio.emit("error", {"message": "Game not in progress"}, to=sid)
+            return
+
+        player = room.players.get(sid)
+        if not player:
+            await sio.emit("error", {"message": "Player not found"}, to=sid)
+            return
+
+        q_num_raw = data.get("question_number")
+        try:
+            q_num = int(q_num_raw)
+        except (ValueError, TypeError):
+            await sio.emit("error", {"message": "Invalid question number"}, to=sid)
+            return
+
+        if q_num != room.current_question_index + 1:
+            await sio.emit("error", {"message": "Invalid question"}, to=sid)
+            return
+
+        q = room.questions[room.current_question_index]
+        result = ScoringEngine.calculate(
+            data.get("selected_option"), q["correct_option_id"],
+            data.get("time_taken_ms", 0), room.time_per_question * 1000,
+            player.current_streak
+        )
+
+        player.answers[q_num] = result
+        player.total_score += result["total_score"]
+        player.total_time_ms += data.get("time_taken_ms", 0)
+        player.current_streak = result["new_streak"]
+        player.max_streak = max(player.max_streak, result["new_streak"])
+        if result["is_correct"]:
+            player.correct_count += 1
+        else:
+            player.wrong_count += 1
+
+        await sio.emit("answer_received", {
+            "score_gained": result["total_score"],
+            "total_score": player.total_score
+        }, to=sid)
+
+        connected_players = [p for p in room.players.values() if p.is_connected]
+        if all(q_num in p.answers for p in connected_players):
+            if room.question_timer_task:
+                room.question_timer_task.cancel()
+            await show_results(room)
+    except Exception as e:
+        logger.error(f"Submit answer error: {e}")
+        await sio.emit("error", {"message": "Failed to submit answer"}, to=sid)
+
+async def show_results(room: GameRoom):
+    room.status = GameStatus.ANSWER_PHASE
+    room.last_activity = time.time()
+    q = room.questions[room.current_question_index]
+
+    if room.question_timer_task and not room.question_timer_task.done():
+        room.question_timer_task.cancel()
+
+    for p in room.players.values():
+        if room.current_question_index + 1 not in p.answers:
+            p.unanswered_count += 1
+
+    await sio.emit("question_results", {
+        "correct_option": q["correct_option_id"],
+        "explanation": q["explanation"],
+        "player_results": [
+            {
+                "name": p.name,
+                "is_correct": p.answers.get(room.current_question_index + 1, {}).get("is_correct", False),
+                "score_gained": p.answers.get(room.current_question_index + 1, {}).get("total_score", 0)
+            }
+            for p in room.players.values()
+        ]
+    }, room=room.room_code)
+
+    await asyncio.sleep(2)
+
+    rankings = ScoringEngine.rankings(room.players)
+    await sio.emit("leaderboard", {
+        "rankings": rankings,
+        "next_question_in": 3
+    }, room=room.room_code)
+
+    room.status = GameStatus.LEADERBOARD
+    await asyncio.sleep(3)
+
+    if room.current_question_index + 1 < len(room.questions):
+        await start_question(room, room.current_question_index + 1)
+    else:
+        await end_game(room)
+
+
+@sio.on("restart_room")
+async def on_restart(sid, data):
+    room = room_manager.get_by_sid(sid)
+    if not room or not room.players.get(sid, Player("", "", "")).is_host:
+        return
+
+    # 1. Reset Room and Player States
+    room.status = GameStatus.WAITING
+    room.current_question_index = -1
+    for p in room.players.values():
+        p.total_score = 0
+        p.correct_count = 0
+        p.wrong_count = 0
+        p.unanswered_count = 0
+        p.current_streak = 0
+        p.max_streak = 0
+        p.total_time_ms = 0
+        p.answers = {}
+
+    room.questions = []
+
+    # 2. Tell all clients to jump back to the Lobby UI immediately
+    await sio.emit("room_restarted", {"room_code": room.room_code}, room=room.room_code)
+
+    # 3. Generate the new exam safely
+    try:
+        service = QuestionService()
+        room.questions = await service.generate(room.subject, room.difficulty, room.chapters)
+
+        for idx, q in enumerate(room.questions):
+            q["question_number"] = idx + 1
+
+        # 4. Unlock the Start button
+        await sio.emit("questions_ready", {"ready": True}, room=room.room_code)
+    except Exception as e:
+        logger.error(f"Restart generation failed: {e}")
+        await sio.emit("generation_failed", {"message": "AI overloaded, please try again."}, room=room.room_code)
+
+async def end_game(room: GameRoom):
+    room.status = GameStatus.FINISHED
+    room.last_activity = time.time()
+    rankings = ScoringEngine.rankings(room.players)
+    room.final_rankings = rankings
+
+
+    await sio.emit("game_over", {"final_rankings": rankings}, room=room.room_code)
+
