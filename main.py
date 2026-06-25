@@ -1320,3 +1320,30 @@ async def end_game(room: GameRoom):
 
     await sio.emit("game_over", {"final_rankings": rankings}, room=room.room_code)
 
+# 12. FASTAPI APP
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await cache_manager.connect()
+    await rate_limiter.connect()
+    room_manager.start_cleanup()
+    logger.info("Battle Arena API started")
+    yield
+    global _shared_redis
+    if _shared_redis:
+        await _shared_redis.close()
+        _shared_redis = None
+    logger.info("Battle Arena API stopped")
+
+app = FastAPI(
+    title="Shik-Shak Arena API",
+    version="3.1.0",
+    lifespan=lifespan,
+    docs_url="/docs" if Config.ENV == "development" else None,
+    redoc_url="/redoc" if Config.ENV == "development" else None,
+)
+
+
+app.mount("/socket.io", socket_app)
+
+
