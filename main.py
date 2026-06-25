@@ -1464,3 +1464,34 @@ async def start_practice(request: ExamGenerationRequest, user: Dict = Depends(Au
         ]
     }
 
+@app.post("/api/v1/practice/answer")
+async def practice_answer(data: PracticeAnswerRequest, user: Dict = Depends(AuthManager.get_current_user)):
+    session = practice_sessions.get(data.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    if data.question_number < 1 or data.question_number > len(session["questions"]):
+        raise HTTPException(status_code=400, detail="Invalid question number")
+
+    q = session["questions"][data.question_number - 1]
+    selected = data.selected_option
+    is_correct = selected == q["correct_option_id"] if selected else False
+    score = 4 if is_correct else (-1 if selected else 0)
+
+    session["answers"][data.question_number] = {
+        "selected": selected,
+        "is_correct": is_correct,
+        "score": score
+    }
+    session["last_activity"] = time.time()
+
+    return {
+        "is_correct": is_correct,
+        "correct_option": q["correct_option_id"],
+        "explanation": q["explanation"],
+        "score": score
+    }
+
