@@ -1093,3 +1093,17 @@ async def on_kick(sid, data):
         logger.error(f"Kick player error: {e}")
         await sio.emit("error", {"message": "Failed to kick player"}, to=sid)
 
+@sio.on("get_room_info")
+async def on_get_room_info(sid, data):
+    try:
+        room = room_manager.get_by_sid(sid)
+        if not room:
+            await sio.emit("error", {"message": "Not in a room"}, to=sid)
+            return
+
+        info = room_manager.get_room_info(room.room_code)
+        await sio.emit("room_info", info, to=sid)
+    except Exception as e:
+        logger.error(f"Get room info error: {e}")
+
+
