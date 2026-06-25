@@ -885,3 +885,29 @@ async def connect(sid, environ):
     await sio.emit("connected", {"sid": sid}, to=sid)
 
 
+@sio.event
+async def disconnect(sid):
+    room = room_manager.get_by_sid(sid)
+    if not room:
+        return
+
+    # 1. Update player status
+    room_manager.leave(sid)
+
+    # 2. Check if we should forfeit or continue
+    active_players = [p for p in room.players.values() if p.is_connected]
+
+    if len(active_players) < 2:
+        # Not enough players left to play
+        await sio.emit("room_forfeited", {"message": "Not enough players to continue. Match ended."},
+                       room=room.room_code)
+        room_manager.rooms.pop(room.room_code, None)
+    else:
+        # Notify remaining players someone left
+        await sio.emit("player_left_notification", {"message": "A player has left the battle. Continuing..."},
+                       room=room.room_code)
+        # Update player list for UI
+        await sio.emit("update_players", {
+            "players": [{"sid": p.sid, "name": p.name, "is_host": p.is_host} for p in active_players]
+        }, room=room.room_code)
+
