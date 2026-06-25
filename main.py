@@ -23,18 +23,10 @@ import random
 import jwt
 
 from supabase import create_client, Client
+from sympy import simplify
+from sympy.parsing.latex import parse_latex
 
-try:
-    from sympy import simplify
-    from sympy.parsing.latex import parse_latex
-    from sympy.core.expr import Expr
-    SYMPY_LATEX_AVAILABLE = True
-except ImportError:
-    SYMPY_LATEX_AVAILABLE = False
-    simplify = None
-    parse_latex = None
-    Expr = None
-
+SYMPY_LATEX_AVAILABLE = True
 
 
 load_dotenv()
@@ -411,12 +403,11 @@ class MathPhysicsValidator:
                 for j in range(i + 1, len(parsed)):
                     id1, e1 = parsed[i]
                     id2, e2 = parsed[j]
-                    try:
-                        if simplify(e1 - e2) == 0 or simplify(e1).equals(simplify(e2)):
-                            logger.error(f"[Q{q_idx+1}] Identical options: {id1} and {id2}")
-                            return False
-                    except Exception:
-                        continue
+
+                    if simplify(e1 - e2) == 0 or simplify(e1).equals(simplify(e2)):
+                        logger.error(f"[Q{q_idx+1}] Identical options: {id1} and {id2}")
+                        return False
+
         return True
 
 class ChemistryValidator:
