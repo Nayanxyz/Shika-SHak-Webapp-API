@@ -1525,4 +1525,28 @@ async def finish_practice(data: Dict = Body(...), user: Dict = Depends(AuthManag
         "accuracy": accuracy,
     }
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/api/v1/practice/{session_id}/results")
+async def practice_results(session_id: str, user: Dict = Depends(AuthManager.get_current_user)):
+    session = practice_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    answers = session["answers"]
+    total = sum(a["score"] for a in answers.values())
+    correct = sum(1 for a in answers.values() if a["is_correct"])
+    wrong = len(answers) - correct
+    unanswered = len(session["questions"]) - len(answers)
+
+    return {
+        "session_id": session_id,
+        "total_score": total,
+        "correct_count": correct,
+        "wrong_count": wrong,
+        "unanswered_count": unanswered,
+        "accuracy": round(correct / len(session["questions"]) * 100, 1) if session["questions"] else 0,
+        "completed": len(answers) >= len(session["questions"]),
+    }
+
