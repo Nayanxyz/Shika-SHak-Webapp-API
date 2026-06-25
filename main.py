@@ -842,3 +842,23 @@ class ScoringEngine:
             "new_streak": new_streak,
         }
 
+    @classmethod
+    def rankings(cls, players: Dict[str, Player]):
+        plist = sorted(players.values(), key=lambda p: (
+            -p.total_score,
+            -(p.correct_count / max(p.correct_count + p.wrong_count + p.unanswered_count, 1)),
+            p.total_time_ms / max(p.correct_count + p.wrong_count, 1),
+            -p.max_streak,
+        ))
+        return [{
+            "rank": i + 1,
+            "user_id": p.user_id,
+            "name": p.name,
+            "total_score": p.total_score,
+            "correct_count": p.correct_count,
+            "wrong_count": p.wrong_count,
+            "unanswered_count": p.unanswered_count,
+            "accuracy": round(p.correct_count / max(p.correct_count + p.wrong_count + p.unanswered_count, 1) * 100, 1),
+            "max_streak": p.max_streak,
+        } for i, p in enumerate(plist)]
+
