@@ -1422,6 +1422,7 @@ async def cleanup_practice_sessions():
     while True:
         await asyncio.sleep(60)
         now = time.time()
+
         to_remove = [
             sid for sid, session in practice_sessions.items()
             if now - session.get("created_at", 0) > Config.PRACTICE_SESSION_TTL
