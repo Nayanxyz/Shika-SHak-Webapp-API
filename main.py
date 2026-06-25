@@ -862,3 +862,26 @@ class ScoringEngine:
             "max_streak": p.max_streak,
         } for i, p in enumerate(plist)]
 
+# 11. SOCKET.IO EVENTS
+
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    cors_allowed_origins="http://localhost:3001",
+    logger=True,
+    engineio_logger=True,
+)
+socket_app = socketio.ASGIApp(sio)
+
+def normalize_payload(data: Any) -> dict:
+    if isinstance(data, str):
+        try: return json.loads(data)
+        except Exception: pass
+    if isinstance(data, dict): return data
+    return {}
+
+@sio.event
+async def connect(sid, environ):
+    logger.info(f"Client connected: {sid}")
+    await sio.emit("connected", {"sid": sid}, to=sid)
+
+
