@@ -1273,6 +1273,7 @@ async def show_results(room: GameRoom):
         await end_game(room)
 
 
+
 @sio.on("restart_room")
 async def on_restart(sid, data):
     room = room_manager.get_by_sid(sid)
