@@ -1347,3 +1347,19 @@ app = FastAPI(
 app.mount("/socket.io", socket_app)
 
 
+@app.middleware("http")
+async def cors_for_api_only(request, call_next):
+    if request.url.path.startswith("/socket.io"):
+        return await call_next(request)
+
+    if request.method == "OPTIONS":
+        response = Response()
+    else:
+        response = await call_next(request)
+
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:3001"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
