@@ -991,3 +991,50 @@ async def on_join(sid, data):
         logger.error(f"Join room error: {e}")
         await sio.emit("error", {"message": "Failed to join room"}, to=sid)
 
+@sio.on("rejoin_room")
+async def on_rejoin(sid, data):
+    try:
+        room_code = data.get("room_code")
+        user_id = data.get("user_id")
+        if not room_code or not user_id:
+            await sio.emit("error", {"message": "Room code and user_id required"}, to=sid)
+            return
+
+        room = room_manager.get(room_code)
+        if not room:
+            await sio.emit("error", {"message": "Room not found"}, to=sid)
+            return
+
+        old_player = next((p for p in room.players.values() if p.user_id == user_id), None)
+        if old_player:
+            room_manager.player_rooms.pop(old_player.sid, None)
+            old_player.sid = sid
+            old_player.is_connected = True
+            room_manager.player_rooms[sid] = room_code
+            await sio.enter_room(sid, room_code)
+
+            await sio.emit("room_joined", {
+                "room_code": room.room_code,
+                "players": [{"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected} for p in room.players.values()],
+                "is_host": old_player.is_host,
+            }, to=sid)
+
+            await sio.emit("player_joined", {
+                "players": [{"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected} for p in room.players.values()]
+            }, room=room.room_code)
+
+            if room.status in (GameStatus.PLAYING, GameStatus.ANSWER_PHASE, GameStatus.LEADERBOARD) and room.current_question_index >= 0:
+                q = room.questions[room.current_question_index]
+                await sio.emit("question_start", {
+                    "question_number": room.current_question_index + 1,
+                    "total_questions": len(room.questions),
+                    "question_text": q["question_text"],
+                    "options": q["options"],
+                    "time_limit": room.time_per_question,
+                }, to=sid)
+        else:
+            await sio.emit("error", {"message": "Player not found in room"}, to=sid)
+    except Exception as e:
+        logger.error(f"Rejoin error: {e}")
+        await sio.emit("error", {"message": "Failed to rejoin"}, to=sid)
+
