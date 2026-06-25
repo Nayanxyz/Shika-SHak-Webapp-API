@@ -954,3 +954,40 @@ async def on_create(sid, data):
         await sio.emit("generation_failed", {"message": "AI overloaded, please try again."}, to=sid)
 
 
+@sio.on("join_room")
+async def on_join(sid, data):
+    try:
+        if not isinstance(data, dict) or "room_code" not in data:
+            await sio.emit("error", {"message": "Room code required"}, to=sid)
+            return
+
+        user_id = data.get("user_id", f"user_{sid[:8]}")
+        room = room_manager.join(
+            data["room_code"], sid,
+            user_id,
+            data.get("player_name", "Player")
+        )
+        if not room:
+            await sio.emit("error", {"message": "Room not found or full"}, to=sid)
+            return
+
+        await sio.enter_room(sid, room.room_code)
+        await sio.emit("room_joined", {
+            "room_code": room.room_code,
+            "players": [
+                {"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected}
+                for p in room.players.values()
+            ],
+            "is_host": False,
+        }, to=sid)
+
+        await sio.emit("player_joined", {
+            "players": [
+                {"sid": p.sid, "name": p.name, "is_host": p.is_host, "is_connected": p.is_connected}
+                for p in room.players.values()
+            ]
+        }, room=room.room_code)
+    except Exception as e:
+        logger.error(f"Join room error: {e}")
+        await sio.emit("error", {"message": "Failed to join room"}, to=sid)
+
