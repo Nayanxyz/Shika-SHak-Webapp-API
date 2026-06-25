@@ -1430,3 +1430,37 @@ async def cleanup_practice_sessions():
             practice_sessions.pop(sid, None)
             logger.info(f"Cleaned up practice session {sid}")
 
+@app.post("/api/v1/practice/start")
+async def start_practice(request: ExamGenerationRequest, user: Dict = Depends(AuthManager.get_current_user)):
+    service = QuestionService()
+    questions = await service.generate(request.subject, request.difficulty, request.chapter_mix)
+    session_id = str(uuid.uuid4())
+
+    practice_sessions[session_id] = {
+        "session_id": session_id,
+        "user_id": user["user_id"],
+        "subject": request.subject.value,
+        "difficulty": request.difficulty.value,
+        "chapter_ids": [ch.id for ch in request.chapter_mix],
+        "questions": questions,
+        "time_per_question": 60,
+        "answers": {},
+        "created_at": time.time(),
+    }
+
+    global _practice_cleanup_task
+    if _practice_cleanup_task is None or _practice_cleanup_task.done():
+        _practice_cleanup_task = asyncio.create_task(cleanup_practice_sessions())
+
+    return {
+        "session_id": session_id,
+        "subject": request.subject.value,
+        "difficulty": request.difficulty.value,
+        "total_questions": len(questions),
+        "time_per_question": 60,
+        "questions": [
+            {"question_number": i+1, "question_text": q["question_text"], "options": q["options"]}
+            for i, q in enumerate(questions)
+        ]
+    }
+
