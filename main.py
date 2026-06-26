@@ -854,9 +854,11 @@ class ScoringEngine:
 
 # 11. SOCKET.IO EVENTS
 
+socket_cors = "*" if "*" in Config.CORS_ORIGINS else Config.CORS_ORIGINS
+
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="http://localhost:3001",
+    cors_allowed_origins=socket_cors,
     logger=True,
     engineio_logger=True,
 )
@@ -1348,8 +1350,12 @@ async def cors_for_api_only(request, call_next):
     else:
         response = await call_next(request)
 
-    response.headers["Access-Control-Allow-Origin"] = "http://localhost:3001"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
+    origin = request.headers.get("Origin")
+    if origin:
+        if "*" in Config.CORS_ORIGINS or origin in Config.CORS_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
