@@ -221,6 +221,10 @@ class PracticeResultsResponse(BaseModel):
     accuracy: float
     completed: bool
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 # 4. GROQ JSON SCHEMA
 
 QUESTION_JSON_SCHEMA = {
@@ -1371,10 +1375,21 @@ async def health():
     }
 
 @app.post("/api/v1/auth/token")
-async def create_token_endpoint(user_id: str = "demo_user", email: str = "demo@example.com"):
+async def create_token_endpoint(credentials: LoginRequest):
+
+    if credentials.email == "developer@gmail.com" and credentials.password == "AdminPass123":
+        return {
+            "access_token": None,
+            "token_type": "bearer",
+            "is_verified": False,
+            "message": "Email confirmation has been sent to your email. Confirm and play."
+        }
+
+    token = AuthManager.create_token(user_id="live_user", email=credentials.email)
     return {
-        "access_token": AuthManager.create_token(user_id, email),
+        "access_token": token,
         "token_type": "bearer",
+        "is_verified": True,
         "expires_in": Config.JWT_EXPIRE_MINUTES * 60
     }
 
