@@ -474,6 +474,21 @@ class QuestionService:
             Difficulty.LOW: "Foundation level. Direct application. 2-3 min solve time.",
             Difficulty.HIGH: "Advanced competitive. Multi-step reasoning. 5-8 min solve time.",
         }
+
+        # ─── THE FIX: DYNAMIC RULES BY SUBJECT ───
+        if subject in [Subject.MATH, Subject.PHYSICS, Subject.CHEMISTRY]:
+            formatting_rules = """
+        4. Use LaTeX for ALL math/chemical notation. YOU MUST wrap formulas in `$` signs (e.g., $\\frac{x}{y}$).
+        5. NEVER write LaTeX commands without the backslash. Always use \\command.
+        6. In JSON, backslashes MUST be escaped as double backslash (e.g., \\\\frac, \\\\sqrt).
+            """
+        else:
+            formatting_rules = """
+        4. STRICT RULE: Write in PLAIN TEXT ONLY. DO NOT use LaTeX.
+        5. ABSOLUTELY NO backslashes (\\) allowed in the text.
+        6. Do not use markdown bolding or italicizing in the questions or options.
+            """
+
         return f"""You are a {subjects[subject]} creating competitive exam questions.
 
         {diffs[difficulty]}
@@ -482,11 +497,9 @@ class QuestionService:
         1. Generate EXACTLY {expected_count} questions, one per chapter. NO MORE, NO LESS.
         2. Each question MUST have 4 options: A, B, C, D.
         3. Options must be COMPLETELY DIFFERENT — no duplicates, no similar text.
-        4. Use LaTeX ($...$) for math/chemical notation.
-        5. Correct answer must be unambiguous.
-        6. Include detailed explanation with proper LaTeX.
-        7. NEVER write LaTeX commands without the backslash. Always use \\command.
-        8. In JSON, backslashes must be escaped as double backslash.
+        {formatting_rules}
+        7. Correct answer must be unambiguous.
+        8. Include detailed explanation.
 
         YOU MUST respond with valid JSON only. The JSON must contain exactly 5 questions.
         """
@@ -496,7 +509,22 @@ class QuestionService:
         schema_hint = json.dumps(QUESTION_JSON_SCHEMA, indent=2)
         seed = random.randint(1000, 999999)
 
-        return f"""Generate 5 MCQ questions for {subject.value} ({difficulty.value}).
+        # ─── 1. ISOLATE THE FINAL REMINDER ───
+        if subject in [Subject.MATH, Subject.PHYSICS, Subject.CHEMISTRY]:
+            final_reminder = """
+            Remember: ONLY JSON. No other text. 
+            Use proper LaTeX inside $...$ like $\\frac{a}{b}$, $\\sqrt{x}$, $\\vec{a}$. 
+            In JSON, write LaTeX commands with double backslash: \\\\frac, \\\\sqrt.
+            """
+        else:
+            final_reminder = """
+            Remember: ONLY JSON. No other text. 
+            Use plain English text ONLY. DO NOT use any LaTeX formatting. 
+            NO backslashes allowed.
+            """
+
+        # ─── 2. INJECT IT INTO THE RETURN ───
+        return f"""Generate {expected_count} MCQ questions for {subject.value} ({difficulty.value}).
 
     SEED: {seed}
 
@@ -505,9 +533,7 @@ class QuestionService:
 
     Respond with JSON matching this schema:
     {schema_hint}
-
-    Remember: ONLY JSON. No other text. Use proper LaTeX inside $...$ like $\\frac{{a}}{{b}}$, $\\sqrt{{x}}$, $\\vec{{a}}$, $\\alpha$, $\\cdot$, etc.
-    In JSON, write LaTeX commands with double backslash: \\\\frac, \\\\sqrt, \\\\cdot, \\\\alpha, etc.
+    {final_reminder}
     """
 
     def _sanitize_latex(self, text: str) -> str:
