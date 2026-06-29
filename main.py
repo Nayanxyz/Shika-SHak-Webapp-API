@@ -58,7 +58,16 @@ class Config:
     RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 
     ENV = os.getenv("ENV", "development")
-    CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
+    _base_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
+
+    # 2. Force inject the Android Capacitor origins so the APK never gets blocked
+    _capacitor_origins = ["https://localhost", "http://localhost", "capacitor://localhost"]
+
+    # 3. Combine them. If "*" is used, keep it as just ["*"]
+    if "*" in _base_origins:
+        CORS_ORIGINS = ["*"]
+    else:
+        CORS_ORIGINS = list(set(_base_origins + _capacitor_origins))
 
     GAME_TIME_PER_QUESTION = int(os.getenv("GAME_TIME_PER_QUESTION", "60"))
     MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "4"))
