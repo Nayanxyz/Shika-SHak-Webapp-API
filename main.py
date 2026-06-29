@@ -498,8 +498,8 @@ class QuestionService:
         2. Each question MUST have 4 options: A, B, C, D.
         3. Options must be COMPLETELY DIFFERENT — no duplicates, no similar text.
         {formatting_rules}
-        7. Correct answer must be unambiguous.
-        8. Include detailed explanation.
+        4. Correct answer must be unambiguous.
+        5. Explanations MUST be highly concise. Maximum 3 sentences. Do NOT over-explain wrong options.
 
         YOU MUST respond with valid JSON only. The JSON must contain exactly 5 questions.
         """
